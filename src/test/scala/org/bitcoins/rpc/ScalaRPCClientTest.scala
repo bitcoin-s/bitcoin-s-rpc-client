@@ -1,10 +1,11 @@
 package org.bitcoins.rpc
 
-import org.bitcoins.marshallers.rpc.bitcoincore.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoMarshaller}
-import org.bitcoins.marshallers.rpc.bitcoincore.mining.MiningInfoMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.networking.NetworkMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.wallet.WalletMarshaller
+
 import org.bitcoins.protocol.Address
+import org.bitcoins.rpc.marshallers.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoRPCMarshaller}
+import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
+import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.scalatest.{MustMatchers, FlatSpec}
 import spray.json._
 
@@ -25,8 +26,8 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   it must "parse and return networkinfo" in {
     val networkInfo = test.sendCommand("getnetworkinfo")
     val json = networkInfo.parseJson
-    test.getNetworkInfo must be (NetworkMarshaller.NetworkInfoFormatter.read(json))
-    test.getNetworkInfo.version must be (NetworkMarshaller.NetworkInfoFormatter.read(json).version)
+    test.getNetworkInfo must be (NetworkRPCMarshaller.NetworkInfoFormatter.read(json))
+    test.getNetworkInfo.version must be (NetworkRPCMarshaller.NetworkInfoFormatter.read(json).version)
   }
 
   it must "parse and return mininginfo" in {
@@ -38,7 +39,7 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   it must "parse and return blockchaininfo" in {
     val blockchainInfo = test.sendCommand("getblockchaininfo")
     val json = blockchainInfo.parseJson
-    test.getBlockChainInfo must be (BlockchainInfoMarshaller.BlockchainInfoFormatter.read(json))
+    test.getBlockChainInfo must be (BlockchainInfoRPCMarshaller.BlockchainInfoFormatter.read(json))
   }
 
   it must "parse and return mempoolinfo" in {

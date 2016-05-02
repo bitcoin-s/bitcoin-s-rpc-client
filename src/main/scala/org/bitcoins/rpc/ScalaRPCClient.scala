@@ -1,10 +1,10 @@
 package org.bitcoins.rpc
 
-import org.bitcoins.marshallers.MarshallerUtil
-import org.bitcoins.marshallers.rpc.bitcoincore.blockchain.{BlockchainInfoMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
-import org.bitcoins.marshallers.rpc.bitcoincore.mining.MiningInfoMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.networking.NetworkMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.wallet.WalletMarshaller
+import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
+import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
+import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
+import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.bitcoins.protocol.Address
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
@@ -17,7 +17,7 @@ import scala.sys.process._
 /**
  * Created by Tom on 1/14/2016.
  */
-class ScalaRPCClient (client : String, network : String) extends MarshallerUtil {
+class ScalaRPCClient (client : String, network : String) extends RPCMarshallerUtil {
   /**
    * Refer to this reference for list of RPCs
    * https://bitcoin.org/en/developer-reference#rpcs
@@ -66,7 +66,7 @@ class ScalaRPCClient (client : String, network : String) extends MarshallerUtil 
    */
   def getBlockChainInfo : BlockchainInfo = {
     val result : String = sendCommand("getblockchaininfo")
-    BlockchainInfoMarshaller.BlockchainInfoFormatter.read(result.parseJson)
+    BlockchainInfoRPCMarshaller.BlockchainInfoFormatter.read(result.parseJson)
   }
 
   /**
@@ -101,7 +101,7 @@ class ScalaRPCClient (client : String, network : String) extends MarshallerUtil 
    */
   def getNetworkInfo : NetworkInfo = {
     val result : String = sendCommand("getnetworkinfo")
-    NetworkMarshaller.NetworkInfoFormatter.read(result.parseJson)
+    NetworkRPCMarshaller.NetworkInfoFormatter.read(result.parseJson)
   }
 
   /**
