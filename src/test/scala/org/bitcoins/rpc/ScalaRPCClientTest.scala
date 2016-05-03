@@ -1,7 +1,7 @@
 package org.bitcoins.rpc
 
 
-import org.bitcoins.protocol.Address
+import org.bitcoins.protocol.{BitcoinAddress, Address}
 import org.bitcoins.rpc.marshallers.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoRPCMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
 import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
@@ -16,11 +16,12 @@ import scala.sys.process.Process
   */
 class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   val client : String = "bitcoin-cli"
-  val network : String = "-testnet"
+  val network : String = "-regtest"
   val test = new ScalaRPCClient(client, network)
+  //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -testnet -txindex -daemon
 
-  "sendCommand" must "send a command to the command line and return the output" in {
-    test.getBlockCount must be (test.sendCommand("getblockcount").trim.toInt)
+  "ScalaRPCClient" must "send a command to the command line and return the output" in {
+    test.getBlockCount must be (101)
   }
 
   it must "parse and return networkinfo" in {
@@ -63,30 +64,31 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   }
 
   it must "get difficuluty" in {
-    val difficulty = test.sendCommand("getdifficulty")
-    test.getDifficulty must be (difficulty.trim.toDouble)
+    test.getDifficulty must be (0.00000000)
   }
 
   it must "get new address" in {
-    val address : Address = test.getNewAddress
+    val address = test.getNewAddress
+    address.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get raw change address" in {
-    val rawchangeaddress : Address = test.getRawChangeAddress
+    val rawchangeaddress = test.getRawChangeAddress
+    rawchangeaddress.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get the balance" in {
-    val balance = test.sendCommand("getbalance")
-    test.getBalance must be (balance.trim.toDouble)
+    test.getBalance must be (49.99999809)
   }
 
   it must "get best block hash" in {
-    val bestBlockHash = test.getBestBlockHash
+    test.getBestBlockHash.trim must be ("7152749bcde70b851181cefbd984a56b6b6451d62b60e3d3e55c010ef6def8a1")
   }
 
   it must "add a 1-of-1 multisig address" in {
+    test.sendCommand("importprivkey cRrskGCyaw2WrAtkA1z4DpWiNnpBz5k98kqZhbDRu8KzUyTxi8QZ")
     val address = "mp1z2kUC5pDv2CkqvfVrxw2J9PVeqGeuQJ"
-    val result = test.generateOneOfOneMultiSigAddress(1, address)
+    test.generateOneOfOneMultiSigAddress(1, address) must be (BitcoinAddress("2MwpMdVo1jXffJjyfynD9Zu9nrZBwdLxBzD"))
   }
 
 }
