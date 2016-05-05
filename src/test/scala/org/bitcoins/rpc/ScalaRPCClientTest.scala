@@ -1,10 +1,11 @@
 package org.bitcoins.rpc
 
-import org.bitcoins.marshallers.rpc.bitcoincore.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoMarshaller}
-import org.bitcoins.marshallers.rpc.bitcoincore.mining.MiningInfoMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.networking.NetworkMarshaller
-import org.bitcoins.marshallers.rpc.bitcoincore.wallet.WalletMarshaller
-import org.bitcoins.protocol.Address
+
+import org.bitcoins.protocol.{BitcoinAddress, Address}
+import org.bitcoins.rpc.marshallers.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoRPCMarshaller}
+import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
+import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.scalatest.{MustMatchers, FlatSpec}
 import spray.json._
 
@@ -15,18 +16,20 @@ import scala.sys.process.Process
   */
 class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   val client : String = "bitcoin-cli"
-  val network : String = "-testnet"
+  val network : String = "-regtest"
   val test = new ScalaRPCClient(client, network)
+  //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
-  "sendCommand" must "send a command to the command line and return the output" in {
-    test.getBlockCount must be (test.sendCommand("getblockcount").trim.toInt)
+  "ScalaRPCClient" must "send a command to the command line and return the output" in {
+    test.sendCommand("generate 101")
+    test.getBlockCount must be (101)
   }
 
   it must "parse and return networkinfo" in {
     val networkInfo = test.sendCommand("getnetworkinfo")
     val json = networkInfo.parseJson
-    test.getNetworkInfo must be (NetworkMarshaller.NetworkInfoFormatter.read(json))
-    test.getNetworkInfo.version must be (NetworkMarshaller.NetworkInfoFormatter.read(json).version)
+    test.getNetworkInfo must be (NetworkRPCMarshaller.NetworkInfoFormatter.read(json))
+    test.getNetworkInfo.version must be (NetworkRPCMarshaller.NetworkInfoFormatter.read(json).version)
   }
 
   it must "parse and return mininginfo" in {
@@ -38,7 +41,8 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   it must "parse and return blockchaininfo" in {
     val blockchainInfo = test.sendCommand("getblockchaininfo")
     val json = blockchainInfo.parseJson
-    test.getBlockChainInfo must be (BlockchainInfoMarshaller.BlockchainInfoFormatter.read(json))
+    test.getBlockChainInfo must be (BlockchainInfoRPCMarshaller.BlockchainInfoFormatter.read(json))
+    test.getBlockChainInfo.chain must be ("regtest")
   }
 
   it must "parse and return mempoolinfo" in {
@@ -62,30 +66,29 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   }
 
   it must "get difficuluty" in {
-    val difficulty = test.sendCommand("getdifficulty")
-    test.getDifficulty must be (difficulty.trim.toDouble)
+    test.getDifficulty must be (4.656542373906925E-10)
   }
 
   it must "get new address" in {
-    val address : Address = test.getNewAddress
+    test.getNewAddress.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get raw change address" in {
-    val rawchangeaddress : Address = test.getRawChangeAddress
+    test.getRawChangeAddress.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get the balance" in {
-    val balance = test.sendCommand("getbalance")
-    test.getBalance must be (balance.trim.toDouble)
+    test.getBalance must be (50.0)
   }
 
-  it must "get best block hash" in {
-    val bestBlockHash = test.getBestBlockHash
+  it must "get block hash" in {
+    test.getBlock(0) must be ("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")
   }
 
   it must "add a 1-of-1 multisig address" in {
-    val address = "mp1z2kUC5pDv2CkqvfVrxw2J9PVeqGeuQJ"
-    val result = test.generateOneOfOneMultiSigAddress(1, address)
+    test.sendCommand("importprivkey cRWEGSNfu7HB8V5doyDaRkWtEUe3jmpSminuD5F9Jyq3f9xxst2t")
+    val address = "n3Dj9Utyu9EXxux4En49aHs59PdYStvang"
+    test.generateOneOfOneMultiSigAddress(address) must be (BitcoinAddress("2MtuY5ef3sGdBfdJUDyYUTYGPJU7Ef14vhB"))
   }
 
 }
