@@ -18,9 +18,10 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   val client : String = "bitcoin-cli"
   val network : String = "-regtest"
   val test = new ScalaRPCClient(client, network)
-  //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -testnet -txindex -daemon
+  //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
+    test.sendCommand("generate 101")
     test.getBlockCount must be (101)
   }
 
@@ -41,6 +42,7 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
     val blockchainInfo = test.sendCommand("getblockchaininfo")
     val json = blockchainInfo.parseJson
     test.getBlockChainInfo must be (BlockchainInfoRPCMarshaller.BlockchainInfoFormatter.read(json))
+    test.getBlockChainInfo.chain must be ("regtest")
   }
 
   it must "parse and return mempoolinfo" in {
@@ -64,31 +66,29 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   }
 
   it must "get difficuluty" in {
-    test.getDifficulty must be (0.00000000)
+    test.getDifficulty must be (4.656542373906925E-10)
   }
 
   it must "get new address" in {
-    val address = test.getNewAddress
-    address.isInstanceOf[BitcoinAddress] must be (true)
+    test.getNewAddress.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get raw change address" in {
-    val rawchangeaddress = test.getRawChangeAddress
-    rawchangeaddress.isInstanceOf[BitcoinAddress] must be (true)
+    test.getRawChangeAddress.isInstanceOf[BitcoinAddress] must be (true)
   }
 
   it must "get the balance" in {
-    test.getBalance must be (49.99999809)
+    test.getBalance must be (50.0)
   }
 
-  it must "get best block hash" in {
-    test.getBestBlockHash.trim must be ("7152749bcde70b851181cefbd984a56b6b6451d62b60e3d3e55c010ef6def8a1")
+  it must "get block hash" in {
+    test.getBlock(0) must be ("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")
   }
 
   it must "add a 1-of-1 multisig address" in {
-    test.sendCommand("importprivkey cRrskGCyaw2WrAtkA1z4DpWiNnpBz5k98kqZhbDRu8KzUyTxi8QZ")
-    val address = "mp1z2kUC5pDv2CkqvfVrxw2J9PVeqGeuQJ"
-    test.generateOneOfOneMultiSigAddress(1, address) must be (BitcoinAddress("2MwpMdVo1jXffJjyfynD9Zu9nrZBwdLxBzD"))
+    test.sendCommand("importprivkey cRWEGSNfu7HB8V5doyDaRkWtEUe3jmpSminuD5F9Jyq3f9xxst2t")
+    val address = "n3Dj9Utyu9EXxux4En49aHs59PdYStvang"
+    test.generateOneOfOneMultiSigAddress(address) must be (BitcoinAddress("2MtuY5ef3sGdBfdJUDyYUTYGPJU7Ef14vhB"))
   }
 
 }
