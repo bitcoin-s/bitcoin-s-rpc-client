@@ -1,9 +1,6 @@
 package org.bitcoins.rpc.marshallers.blockchain
 
-import org.bitcoins.rpc.marshallers.blockchain.softforks.SoftForkRPCMarshaller
-import org.bitcoins.rpc.marshallers.blockchain.softforks.SoftForkRPCMarshaller.SoftForkFormatter
 import org.bitcoins.rpc.bitcoincore.blockchain.BlockchainInfo
-import org.bitcoins.rpc.bitcoincore.blockchain.softforks.SoftForks
 import org.scalatest.{FlatSpec, MustMatchers}
 import spray.json._
 
@@ -35,7 +32,6 @@ class BlockchainInfoMarshallerTest extends FlatSpec with MustMatchers {
     detail.difficulty must be (1.00000000)
     detail.verificationProgress must be (0.99999997)
     detail.chainWork must be ("00000000000000000000000000000000000000000000000730748cb316d3d01f")
-    //detail.softForks.size must be (3)
   }
 
   it must "write blockchain info" in {
@@ -52,57 +48,3 @@ class BlockchainInfoMarshallerTest extends FlatSpec with MustMatchers {
   }
 
 }
-
-/*
-"pruned" : false,
-    "softforks" : [
-        {
-            "id" : "bip34",
-            "version" : 2,
-            "enforce" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 51,
-                "window" : 100
-            },
-            "reject" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 75,
-                "window" : 100
-            }
-        },
-        {
-            "id" : "bip66",
-            "version" : 3,
-            "enforce" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 51,
-                "window" : 100
-            },
-            "reject" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 75,
-                "window" : 100
-            }
-        },
-        {
-            "id" : "bip65",
-            "version" : 4,
-            "enforce" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 51,
-                "window" : 100
-            },
-            "reject" : {
-                "status" : true,
-                "found" : 100,
-                "required" : 75,
-                "window" : 100
-            }
-        }
-    ]
- */
