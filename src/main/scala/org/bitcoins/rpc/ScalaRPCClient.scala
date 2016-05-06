@@ -36,7 +36,7 @@ class ScalaRPCClient (client : String, network : String) extends RPCMarshallerUt
     *
     * @return
     */
-  def stop = sendCommand("stop")
+  def stopServer = sendCommand("stop")
 
   /**
     * The number of blocks in the local best block chain. For a new node with only the hardcoded genesis block,

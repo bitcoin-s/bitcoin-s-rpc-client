@@ -4,9 +4,10 @@ package org.bitcoins.rpc
 import org.bitcoins.protocol.{BitcoinAddress, Address}
 import org.bitcoins.rpc.marshallers.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoRPCMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
-import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.networking.{PeerInfoRPCMarshaller, NetworkRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.scalatest.{MustMatchers, FlatSpec}
+import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
 
 import scala.sys.process.Process
@@ -17,12 +18,14 @@ import scala.sys.process.Process
 class ScalaRPCClientTest extends FlatSpec with MustMatchers {
   val client : String = "bitcoin-cli"
   val network : String = "-regtest"
+  //val network : String = "-testnet"
   val test = new ScalaRPCClient(client, network)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
     test.sendCommand("generate 101")
     test.getBlockCount must be (101)
+
   }
 
   it must "parse and return networkinfo" in {
@@ -43,6 +46,13 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
     val json = blockchainInfo.parseJson
     test.getBlockChainInfo must be (BlockchainInfoRPCMarshaller.BlockchainInfoFormatter.read(json))
     test.getBlockChainInfo.chain must be ("regtest")
+  }
+
+  it must "parse and return peer info" in {
+    val peerInfo = test.sendCommand("getpeerinfo")
+    val json = peerInfo.parseJson
+    test.getPeerInfo must be (test.convertToPeerInfoSeq(json))
+    test.getPeerInfo
   }
 
   it must "parse and return mempoolinfo" in {
@@ -89,6 +99,10 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
     test.sendCommand("importprivkey cRWEGSNfu7HB8V5doyDaRkWtEUe3jmpSminuD5F9Jyq3f9xxst2t")
     val address = "n3Dj9Utyu9EXxux4En49aHs59PdYStvang"
     test.generateOneOfOneMultiSigAddress(address) must be (BitcoinAddress("2MtuY5ef3sGdBfdJUDyYUTYGPJU7Ef14vhB"))
+  }
+
+  it must "stop the server" in {
+    test.stopServer
   }
 
 }

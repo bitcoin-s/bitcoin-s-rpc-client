@@ -19,6 +19,5 @@ before_script:
   - mkdir -p /home/travis/.bitcoin && cp bitcoin.conf /home/travis/.bitcoin/bitcoin.conf
   - bitcoind -regtnet -daemon
 
-after_script:
-  - bitcoin-cli -regtest stop
-
+script: "sbt clean coverage test"
+after_success: "sbt coverageReport coveralls"

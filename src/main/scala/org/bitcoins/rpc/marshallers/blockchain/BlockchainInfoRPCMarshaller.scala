@@ -1,7 +1,6 @@
 package org.bitcoins.rpc.marshallers.blockchain
 
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
-import org.bitcoins.rpc.marshallers.blockchain.softforks.SoftForkRPCMarshaller
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockChainInfoImpl, BlockchainInfo}
 import spray.json._
 
@@ -16,7 +15,6 @@ object BlockchainInfoRPCMarshaller extends DefaultJsonProtocol with RPCMarshalle
   val difficultyKey = "difficulty"
   val verificationProgressKey = "verificationprogress"
   val chainWorkKey = "chainwork"
-  //val softForksKey = "softforks"
 
   implicit object BlockchainInfoFormatter extends RootJsonFormat[BlockchainInfo] {
     override def read (value : JsValue) : BlockchainInfo = {
@@ -28,14 +26,10 @@ object BlockchainInfoRPCMarshaller extends DefaultJsonProtocol with RPCMarshalle
       val difficulty = obj.fields(difficultyKey).convertTo[Double]
       val verificationProgress = obj.fields(verificationProgressKey).convertTo[Double]
       val chainWork = obj.fields(chainWorkKey).convertTo[String]
-      //val softForks : Seq[SoftForks] = convertToSoftForksList(obj.fields(softForksKey))
-      BlockChainInfoImpl(chain, blockCount, headerCount, bestBlockHash, difficulty, verificationProgress, chainWork) //softForks
+      BlockChainInfoImpl(chain, blockCount, headerCount, bestBlockHash, difficulty, verificationProgress, chainWork)
     }
 
     override def write (detail : BlockchainInfo) : JsValue = {
-      //val softForks : JsArray = convertToJsArray(detail.softForks)
-
-
       val m : Map[String, JsValue] = Map (
         chainKey -> JsString(detail.chain),
         blockCountKey -> JsNumber(detail.blockCount),
@@ -44,7 +38,6 @@ object BlockchainInfoRPCMarshaller extends DefaultJsonProtocol with RPCMarshalle
         difficultyKey -> JsNumber(detail.difficulty),
         verificationProgressKey -> JsNumber(detail.verificationProgress),
         chainWorkKey -> JsString(detail.chainWork)
-        //softForksKey -> softForks
         )
       JsObject(m)
     }
