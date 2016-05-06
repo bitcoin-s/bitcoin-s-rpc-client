@@ -52,7 +52,6 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
     val peerInfo = test.sendCommand("getpeerinfo")
     val json = peerInfo.parseJson
     test.getPeerInfo must be (test.convertToPeerInfoSeq(json))
-    test.getPeerInfo
   }
 
   it must "parse and return mempoolinfo" in {
