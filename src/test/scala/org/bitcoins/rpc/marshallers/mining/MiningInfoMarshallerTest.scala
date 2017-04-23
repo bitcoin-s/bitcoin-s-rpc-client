@@ -34,12 +34,9 @@ class MiningInfoMarshallerTest extends FlatSpec with MustMatchers {
     miningMeta.currentBlockTx must be (0)
     miningMeta.difficulty must be (1.00000000)
     miningMeta.errors must be ("")
-    miningMeta.genProcLimit must be (-1)
     miningMeta.networkHashPerSecond must be (BigInt("2302003138855"))
     miningMeta.pooledTx must be (78)
-    miningMeta.testNet must be (true)
     miningMeta.chain must be ("test")
-    miningMeta.generate must be (false)
   }
 
   it must "write mining info" in {
@@ -49,11 +46,8 @@ class MiningInfoMarshallerTest extends FlatSpec with MustMatchers {
     writtenMining.asJsObject.fields("currentblocktx") must be (JsNumber(0))
     writtenMining.asJsObject.fields("difficulty") must be (JsNumber(1.00000000))
     writtenMining.asJsObject.fields("errors") must be (JsString(""))
-    writtenMining.asJsObject.fields("genproclimit") must be (JsNumber(-1))
     writtenMining.asJsObject.fields("networkhashps") must be (JsNumber(BigInt("2302003138855")))
     writtenMining.asJsObject.fields("pooledtx") must be (JsNumber(78))
-    writtenMining.asJsObject.fields("testnet") must be (JsBoolean(true))
     writtenMining.asJsObject.fields("chain") must be (JsString("test"))
-    writtenMining.asJsObject.fields("generate") must be (JsBoolean(false))
   }
 }

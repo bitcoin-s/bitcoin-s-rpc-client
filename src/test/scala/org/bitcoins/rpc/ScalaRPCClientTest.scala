@@ -1,12 +1,12 @@
 package org.bitcoins.rpc
 
-
-import org.bitcoins.protocol.{BitcoinAddress, Address}
-import org.bitcoins.rpc.marshallers.blockchain.{ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller, BlockchainInfoRPCMarshaller}
+import org.bitcoins.core.protocol.{Address, BitcoinAddress}
+import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
-import org.bitcoins.rpc.marshallers.networking.{PeerInfoRPCMarshaller, NetworkRPCMarshaller}
+import org.bitcoins.rpc.marshallers.networking.{NetworkRPCMarshaller, PeerInfoRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
-import org.scalatest.{MustMatchers, FlatSpec}
+import org.bitcoins.core.protocol.BitcoinAddress
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
 
@@ -15,7 +15,7 @@ import scala.sys.process.Process
 /**
   * Created by tom on 4/26/16.
   */
-class ScalaRPCClientTest extends FlatSpec with MustMatchers {
+class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
   val client : String = "bitcoin-cli"
   val network : String = "-regtest"
   //val network : String = "-testnet"
@@ -24,8 +24,7 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
 
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
     test.sendCommand("generate 101")
-    test.getBlockCount must be (101)
-
+    test.getBlockCount must be(101)
   }
 
   it must "parse and return networkinfo" in {
@@ -90,18 +89,7 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers {
     test.getBalance must be (50.0)
   }
 
-  it must "get block hash" in {
-    test.getBlock(0) must be ("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206")
+  override def afterAll = {
+    test.stop
   }
-
-  it must "add a 1-of-1 multisig address" in {
-    test.sendCommand("importprivkey cRWEGSNfu7HB8V5doyDaRkWtEUe3jmpSminuD5F9Jyq3f9xxst2t")
-    val address = "n3Dj9Utyu9EXxux4En49aHs59PdYStvang"
-    test.generateOneOfOneMultiSigAddress(address) must be (BitcoinAddress("2MtuY5ef3sGdBfdJUDyYUTYGPJU7Ef14vhB"))
-  }
-
-  it must "stop the server" in {
-    test.stopServer
-  }
-
 }
