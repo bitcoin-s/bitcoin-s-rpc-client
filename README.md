@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/TomMcCabe/bitcoin-s-rpc-client.svg?branch=rpc-client)](https://travis-ci.org/TomMcCabe/bitcoin-s-rpc-client) [![Coverage Status](https://coveralls.io/repos/github/bitcoin-s/bitcoin-s-rpc-client/badge.svg?branch=rpc-client)](https://coveralls.io/github/bitcoin-s/bitcoin-s-rpc-client?branch=rpc-client)
+[![Build Status](https://travis-ci.org/bitcoin-s/bitcoin-s-rpc-client.svg?branch=master)](https://travis-ci.org/bitcoin-s/bitcoin-s-rpc-client) [![Coverage Status](https://coveralls.io/repos/github/bitcoin-s/bitcoin-s-rpc-client/badge.svg?branch=rpc-client)](https://coveralls.io/github/bitcoin-s/bitcoin-s-rpc-client?branch=rpc-client)
 
 
 **This module is for the RPC-client. For the core module, refer to https://github.com/bitcoin-s/bitcoin-s-core.**
