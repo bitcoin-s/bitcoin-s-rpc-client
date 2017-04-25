@@ -1,5 +1,9 @@
 package org.bitcoins.rpc
 
+import java.io.PrintWriter
+
+import akka.actor.ActorSystem
+import org.bitcoins.core.config.RegTest
 import org.bitcoins.core.protocol.{Address, BitcoinAddress}
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
@@ -10,23 +14,33 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
 
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
 import scala.sys.process.Process
 
 /**
   * Created by tom on 4/26/16.
   */
 class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
+  val system = ActorSystem("ScalaRPCClientTest")
   def randomDirName: String = 0.until(5).map(_ => scala.util.Random.alphanumeric.head).mkString
-  val datadir: String = {
+  val (datadir,username,password) = {
     val d = "/tmp/" + randomDirName
     val f = new java.io.File(d)
     f.mkdir()
-    d
+    val conf = new java.io.File(f.getAbsolutePath + "/bitcoin.conf")
+    conf.createNewFile()
+    val username = "random_user_name"
+    val pass = randomDirName
+    val pw = new PrintWriter(conf)
+    pw.write("rpcuser=" + username + "\n")
+    pw.write("rpcpassword=" + pass + "\n")
+    pw.close()
+    (d,username,pass)
   }
-  val client: String = "bitcoin-cli"
-  val network: String = "regtest"
+  val network = RegTest
 
-  val test = new ScalaRPCClient(client, network, datadir)
+  val test = new ScalaRPCClient(network,username,password,system,datadir)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {
@@ -101,6 +115,6 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterA
   }
 
   override def afterAll = {
-    test.stop
+    Await.result(test.stop,5.seconds)
   }
 }

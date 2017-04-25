@@ -1,5 +1,9 @@
 package org.bitcoins.rpc
 
+import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri
+import akka.stream.ActorMaterializer
+import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
@@ -13,12 +17,13 @@ import org.bitcoins.core.protocol.BitcoinAddress
 import org.bitcoins.core.util.BitcoinSLogger
 import spray.json._
 
+import scala.concurrent.Future
 import scala.sys.process._
 
 /**
   * Created by Tom on 1/14/2016.
   */
-class ScalaRPCClient(client : String, network : String,
+class ScalaRPCClient(network : NetworkParameters, username: String, password: String, system: ActorSystem,
                      datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil with BitcoinSLogger {
 
 
@@ -26,21 +31,28 @@ class ScalaRPCClient(client : String, network : String,
    * Refer to this reference for list of RPCs
    * https://bitcoin.org/en/developer-reference#rpcs */
   def sendCommand(command : String) : String = {
-    val cmd = client + " -" + network + " " + "-datadir=" + datadir + " " + command
+    val networkArg = if (network == MainNet) "" else "-" + network.name
+    val cmd = "bitcoin-cli " + networkArg + " -datadir=" + datadir + " " + command
     val result = cmd.!!
     result
   }
 
   /** Starts the bitcoind instance */
   def start: String = {
-    val cmd = "bitcoind -" + network + " -datadir=" + datadir + " -daemon"
+    val networkArg = if (network == MainNet) "" else "-" + network.name
+    val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon"
     val result = cmd.!!
     result
   }
 
 
   /** This will stop the server */
-  def stop = sendCommand("stop")
+  def stop: Future[Unit] = {
+    val json = RPCHandler.buildRequest("stop")
+    val uri = Uri("http://localhost:" + network.rpcPort)
+    val response = RPCHandler.sendRequest(username,password,uri,json)
+    response.map(_ => ())(system.dispatcher)
+  }
 
   /**
    * The number of blocks in the local best block chain. For a new node with only the hardcoded genesis block,
@@ -51,7 +63,7 @@ class ScalaRPCClient(client : String, network : String,
 
   /** Generates an arbitrary number of blocks in regtest */
   def generate(num: Int): String = {
-    require(network == "regtest", "Can only generate blocks in regtest")
+    require(network == RegTest, "Can only generate blocks in regtest")
     sendCommand("generate " + num)
   }
   /**
