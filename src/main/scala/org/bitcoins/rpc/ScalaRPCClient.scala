@@ -10,6 +10,7 @@ import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
 import org.bitcoins.rpc.bitcoincore.wallet.WalletInfo
 import org.bitcoins.core.protocol.BitcoinAddress
+import org.bitcoins.core.util.BitcoinSLogger
 import spray.json._
 
 import scala.sys.process._
@@ -17,15 +18,26 @@ import scala.sys.process._
 /**
   * Created by Tom on 1/14/2016.
   */
-class ScalaRPCClient(client : String, network : String) extends RPCMarshallerUtil {
+class ScalaRPCClient(client : String, network : String,
+                     datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil with BitcoinSLogger {
+
+
   /**
    * Refer to this reference for list of RPCs
    * https://bitcoin.org/en/developer-reference#rpcs */
   def sendCommand(command : String) : String = {
-    val cmd = client + " " + network + " " + command
+    val cmd = client + " -" + network + " " + "-datadir=" + datadir + " " + command
     val result = cmd.!!
     result
   }
+
+  /** Starts the bitcoind instance */
+  def start: String = {
+    val cmd = "bitcoind -" + network + " -datadir=" + datadir + " -daemon"
+    val result = cmd.!!
+    result
+  }
+
 
   /** This will stop the server */
   def stop = sendCommand("stop")
@@ -37,6 +49,11 @@ class ScalaRPCClient(client : String, network : String) extends RPCMarshallerUti
    */
   def getBlockCount : Int = sendCommand("getblockcount").trim.toInt
 
+  /** Generates an arbitrary number of blocks in regtest */
+  def generate(num: Int): String = {
+    require(network == "regtest", "Can only generate blocks in regtest")
+    sendCommand("generate " + num)
+  }
   /**
    * The getmempoolinfo RPC returns information about the node's current transaction memory pool.
    * https://bitcoin.org/en/developer-reference#getmempoolinfo

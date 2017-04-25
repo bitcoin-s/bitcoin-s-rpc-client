@@ -16,14 +16,25 @@ import scala.sys.process.Process
   * Created by tom on 4/26/16.
   */
 class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
-  val client : String = "bitcoin-cli"
-  val network : String = "-regtest"
-  //val network : String = "-testnet"
-  val test = new ScalaRPCClient(client, network)
+  def randomDirName: String = 0.until(5).map(_ => scala.util.Random.alphanumeric.head).mkString
+  val datadir: String = {
+    val d = "/tmp/" + randomDirName
+    val f = new java.io.File(d)
+    f.mkdir()
+    d
+  }
+  val client: String = "bitcoin-cli"
+  val network: String = "regtest"
+
+  val test = new ScalaRPCClient(client, network, datadir)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
+  override def beforeAll: Unit = {
+    test.start
+    Thread.sleep(15000)
+  }
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
-    test.sendCommand("generate 101")
+    test.generate(101)
     test.getBlockCount must be(101)
   }
 
