@@ -4,15 +4,16 @@ import java.io.PrintWriter
 
 import akka.actor.ActorSystem
 import org.bitcoins.core.config.RegTest
+import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.CurrencyUnits
-import org.bitcoins.core.protocol.{Address, BitcoinAddress}
+import org.bitcoins.core.protocol.{Address, BitcoinAddress, P2PKHAddress}
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
 import org.bitcoins.rpc.marshallers.networking.{NetworkRPCMarshaller, PeerInfoRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
-import org.bitcoins.core.protocol.BitcoinAddress
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
+import org.bitcoins.core.util.BitcoinSLogger
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
@@ -24,7 +25,7 @@ import scala.sys.process.Process
 /**
   * Created by tom on 4/26/16.
   */
-class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterAll {
+class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterAll with BitcoinSLogger {
   val system = ActorSystem("ScalaRPCClientTest")
   def randomDirName: String = 0.until(5).map(_ => scala.util.Random.alphanumeric.head).mkString
   val (datadir,username,password) = {
@@ -121,13 +122,21 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterA
     test.listUnspent.nonEmpty must be (true)
   }
 
-/*  it must "fund a raw transaction" in {
+  it must "fund a raw transaction" in {
     val output = TransactionOutput(CurrencyUnits.oneBTC,EmptyScriptPubKey)
     val unfunded = Transaction(TransactionConstants.version,Nil,Seq(output),TransactionConstants.lockTime)
     val (tx,fees,changepos) = test.fundRawTransaction(unfunded)
+    tx.inputs.nonEmpty must be (true)
+  }
 
-
-  }*/
+  it must "be able to import a private key and then dump it" in {
+    val key = ECPrivateKey()
+    val imp = test.importPrivateKey(key)
+    imp must be (true)
+    val address = P2PKHAddress(key.publicKey,network)
+    val dumpedKey = test.dumpPrivateKey(address)
+    dumpedKey must be (key)
+  }
 
   override def afterAll = {
     system.terminate()

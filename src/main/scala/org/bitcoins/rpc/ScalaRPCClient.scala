@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest}
+import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.number.Int64
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
@@ -15,11 +16,12 @@ import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspent
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
 import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
-import org.bitcoins.core.protocol.BitcoinAddress
+import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
 import spray.json._
 import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
+
 import scala.concurrent.Future
 import scala.sys.process._
 
@@ -184,8 +186,8 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
     * */
   def fundRawTransaction(tx: Transaction): (Transaction, CurrencyUnit, Int) = {
-    val cmd = "funrawtransaction " + tx.hex
-    val json = sendCommand(cmd).toJson
+    val cmd = "fundrawtransaction " + tx.hex
+    val json = sendCommand(cmd).parseJson
     val f = json.asJsObject.fields
     val newTx = Transaction(f("hex").convertTo[String])
     val sat = f("fee").convertTo[Double] * CurrencyUnits.btcToSatoshiScalar
@@ -200,7 +202,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     * */
   def signRawTransaction(tx: Transaction): (Transaction, Boolean) = {
     val cmd = "signrawtransaction " + tx.hex
-    val json = sendCommand(cmd).toJson
+    val json = sendCommand(cmd).parseJson
     val f = json.asJsObject.fields
     val signedTx = Transaction(f("hex").convertTo[String])
     val isComplete = f("complete").convertTo[Boolean]
@@ -214,5 +216,24 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     utxos
   }
 
+  /**
+    * Imports the private key into bitcoin core's wallet
+    * [[https://bitcoin.org/en/developer-reference#importprivkey]]
+    */
+  def importPrivateKey(privKey: ECPrivateKey): Boolean = {
+    val cmd = "importprivkey " + privKey.toWIF(network)
+    val result = sendCommand(cmd)
+    result.isEmpty
+  }
+
+  /**
+    * Dumps the private key associated with this address
+    * [[https://bitcoin.org/en/developer-reference#dumpprivkey]]
+    */
+  def dumpPrivateKey(address: P2PKHAddress): ECPrivateKey = {
+    val cmd = "dumpprivkey " + address.value
+    val result = sendCommand(cmd).trim
+    ECPrivateKey.fromWIFToPrivateKey(result)
+  }
 }
 
