@@ -4,6 +4,8 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest}
+import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
+import org.bitcoins.core.number.Int64
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
@@ -12,11 +14,12 @@ import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
-import org.bitcoins.rpc.bitcoincore.wallet.WalletInfo
+import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
 import org.bitcoins.core.protocol.BitcoinAddress
+import org.bitcoins.core.protocol.transaction.{Transaction, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
 import spray.json._
-
+import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
 import scala.concurrent.Future
 import scala.sys.process._
 
@@ -24,7 +27,8 @@ import scala.sys.process._
   * Created by Tom on 1/14/2016.
   */
 class ScalaRPCClient(network : NetworkParameters, username: String, password: String, system: ActorSystem,
-                     datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil with BitcoinSLogger {
+                     datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil
+  with BitcoinSLogger with DefaultJsonProtocol {
 
 
   /**
@@ -174,6 +178,40 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     val cmd = "addmultisigaddress 1 " + " " + addressInJson
     val result : String = sendCommand(cmd)
     BitcoinAddress(result.trim)
+  }
+
+  /** Funds the given transaction with outputs in the bitcoin core wallet
+    * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
+    * */
+  def fundRawTransaction(tx: Transaction): (Transaction, CurrencyUnit, Int) = {
+    val cmd = "funrawtransaction " + tx.hex
+    val json = sendCommand(cmd).toJson
+    val f = json.asJsObject.fields
+    val newTx = Transaction(f("hex").convertTo[String])
+    val sat = f("fee").convertTo[Double] * CurrencyUnits.btcToSatoshiScalar
+    require(sat.toLong == sat)
+    val fee = Satoshis(Int64(sat.toLong))
+    val changePosition = f("changepos").convertTo[Int]
+    (newTx,fee,changePosition)
+  }
+
+  /** Signs the given raw transaction
+    * [[https://bitcoin.org/en/developer-reference#signrawtransaction]]
+    * */
+  def signRawTransaction(tx: Transaction): (Transaction, Boolean) = {
+    val cmd = "signrawtransaction " + tx.hex
+    val json = sendCommand(cmd).toJson
+    val f = json.asJsObject.fields
+    val signedTx = Transaction(f("hex").convertTo[String])
+    val isComplete = f("complete").convertTo[Boolean]
+    (signedTx,isComplete)
+  }
+
+  def listUnspent: Seq[UTXO] = {
+    val cmd = "listunspent"
+    val json = sendCommand(cmd).parseJson
+    val utxos: Seq[UTXO] = json.convertTo[Seq[UTXO]]
+    utxos
   }
 
 }

@@ -4,12 +4,15 @@ import java.io.PrintWriter
 
 import akka.actor.ActorSystem
 import org.bitcoins.core.config.RegTest
+import org.bitcoins.core.currency.CurrencyUnits
 import org.bitcoins.core.protocol.{Address, BitcoinAddress}
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
 import org.bitcoins.rpc.marshallers.networking.{NetworkRPCMarshaller, PeerInfoRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.bitcoins.core.protocol.BitcoinAddress
+import org.bitcoins.core.protocol.script.EmptyScriptPubKey
+import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
@@ -45,7 +48,7 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterA
 
   override def beforeAll: Unit = {
     test.start
-    Thread.sleep(15000)
+    Thread.sleep(20000)
   }
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
     test.generate(101)
@@ -114,7 +117,20 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterA
     test.getBalance must be (50.0)
   }
 
+  it must "list utxos" in {
+    test.listUnspent.nonEmpty must be (true)
+  }
+
+/*  it must "fund a raw transaction" in {
+    val output = TransactionOutput(CurrencyUnits.oneBTC,EmptyScriptPubKey)
+    val unfunded = Transaction(TransactionConstants.version,Nil,Seq(output),TransactionConstants.lockTime)
+    val (tx,fees,changepos) = test.fundRawTransaction(unfunded)
+
+
+  }*/
+
   override def afterAll = {
+    system.terminate()
     Await.result(test.stop,5.seconds)
   }
 }
