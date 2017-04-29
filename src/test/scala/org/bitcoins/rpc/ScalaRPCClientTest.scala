@@ -3,6 +3,7 @@ package org.bitcoins.rpc
 import java.io.PrintWriter
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri
 import org.bitcoins.core.config.RegTest
 import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.CurrencyUnits
@@ -14,6 +15,7 @@ import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.config.BitcoindInstance
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import spray.json._
@@ -43,8 +45,8 @@ class ScalaRPCClientTest extends FlatSpec with MustMatchers with BeforeAndAfterA
     (d,username,pass)
   }
   val network = RegTest
-
-  val test = new ScalaRPCClient(network,username,password,system,datadir)
+  val instance = BitcoindInstance(network, Uri("http://localhost:" + network.rpcPort))
+  val test = new ScalaRPCClient(instance,username,password,system,datadir)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {

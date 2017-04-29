@@ -19,6 +19,7 @@ import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.config.BitcoindInstance
 import spray.json._
 import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
 
@@ -28,7 +29,7 @@ import scala.sys.process._
 /**
   * Created by Tom on 1/14/2016.
   */
-class ScalaRPCClient(network : NetworkParameters, username: String, password: String, system: ActorSystem,
+class ScalaRPCClient(instance: BitcoindInstance, username: String, password: String, system: ActorSystem,
                      datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil
   with BitcoinSLogger with DefaultJsonProtocol {
 
@@ -37,7 +38,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
    * Refer to this reference for list of RPCs
    * https://bitcoin.org/en/developer-reference#rpcs */
   def sendCommand(command : String) : String = {
-    val networkArg = if (network == MainNet) "" else "-" + network.name
+    val networkArg = parseNetworkArg
     val cmd = "bitcoin-cli " + networkArg + " -datadir=" + datadir + " " + command
     val result = cmd.!!
     result
@@ -45,7 +46,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
 
   /** Starts the bitcoind instance */
   def start: String = {
-    val networkArg = if (network == MainNet) "" else "-" + network.name
+    val networkArg = parseNetworkArg
     val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon"
     val result = cmd.!!
     result
@@ -55,8 +56,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
   /** This will stop the server */
   def stop: Future[Unit] = {
     val json = RPCHandler.buildRequest("stop")
-    val uri = Uri("http://localhost:" + network.rpcPort)
-    val response = RPCHandler.sendRequest(username,password,uri,json)
+    val response = RPCHandler.sendRequest(username,password,instance,json)
     response.map(_ => ())(system.dispatcher)
   }
 
@@ -69,7 +69,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
 
   /** Generates an arbitrary number of blocks in regtest */
   def generate(num: Int): String = {
-    require(network == RegTest, "Can only generate blocks in regtest")
+    require(instance.network == RegTest, "Can only generate blocks in regtest")
     sendCommand("generate " + num)
   }
   /**
@@ -221,7 +221,7 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     * [[https://bitcoin.org/en/developer-reference#importprivkey]]
     */
   def importPrivateKey(privKey: ECPrivateKey): Boolean = {
-    val cmd = "importprivkey " + privKey.toWIF(network)
+    val cmd = "importprivkey " + privKey.toWIF(instance.network)
     val result = sendCommand(cmd)
     result.isEmpty
   }
@@ -234,6 +234,10 @@ class ScalaRPCClient(network : NetworkParameters, username: String, password: St
     val cmd = "dumpprivkey " + address.value
     val result = sendCommand(cmd).trim
     ECPrivateKey.fromWIFToPrivateKey(result)
+  }
+
+  private def parseNetworkArg: String = {
+    if (instance.network == MainNet) "" else "-" + instance.network.name
   }
 }
 
