@@ -3,12 +3,12 @@
 
 **This module is for the RPC-client. For the core module, refer to https://github.com/bitcoin-s/bitcoin-s-core.**
 
-##Prerequisites:
+## Prerequisites:
 * Scala: http://www.scala-lang.org/
 * SBT: http://www.scala-sbt.org/download.html
 * Bitcoin-Core: https://bitcoin.org/en/download
 
-##Getting Started
+## Getting Started
 
 In a terminal, start bitcoin testnet, and enter an SBT console:
 ```scala
