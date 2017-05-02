@@ -1,29 +1,27 @@
 package org.bitcoins.rpc
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.model.{HttpEntity, Uri}
+import akka.http.scaladsl.model.HttpEntity
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Sink
 import akka.util.ByteString
-import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest}
+import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
 import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.number.Int64
-import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
-import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
-import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
-import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
-import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
+import org.bitcoins.core.protocol.transaction.Transaction
+import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
+import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
 import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
-import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
-import org.bitcoins.core.protocol.transaction.{Transaction, TransactionOutput}
-import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.config.BitcoindInstance
-import spray.json._
+import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
+import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
+import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
+import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
 import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
+import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
+import spray.json._
 
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
@@ -32,17 +30,17 @@ import scala.sys.process._
 /**
   * Created by Tom on 1/14/2016.
   */
-class ScalaRPCClient(instance: BitcoindInstance, username: String, password: String, materializer: ActorMaterializer,
-                     datadir: String = System.getProperty("user.home") + "/.bitcoin") extends RPCMarshallerUtil
+sealed trait RPCClient extends RPCMarshallerUtil
   with BitcoinSLogger with DefaultJsonProtocol {
-
+  def instance: BitcoindInstance
+  def materializer: ActorMaterializer
   implicit val dispatcher = materializer.system.dispatcher
   /**
    * Refer to this reference for list of RPCs
    * https://bitcoin.org/en/developer-reference#rpcs */
   def sendCommand(command : String) : Future[JsObject] = {
     val request = RPCHandler.buildRequest(command)
-    val result = RPCHandler.sendRequest(username,password,instance,request)
+    val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
     source.map { ent =>
       val decoded = ent.data.decodeString(ByteString.UTF_8)
@@ -52,21 +50,21 @@ class ScalaRPCClient(instance: BitcoindInstance, username: String, password: Str
 
   def sendCommand(command: String, arg: Int): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
-    val result = RPCHandler.sendRequest(username,password,instance,request)
+    val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
     source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
   }
 
   def sendCommand(command: String, arg: String): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
-    val result = RPCHandler.sendRequest(username,password,instance,request)
+    val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
     source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
   }
 
   def sendCommand(command: String, arg: JsArray): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
-    val result = RPCHandler.sendRequest(username,password,instance,request)
+    val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
     source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
   }
@@ -74,6 +72,7 @@ class ScalaRPCClient(instance: BitcoindInstance, username: String, password: Str
   /** Starts the bitcoind instance */
   def start: Unit = {
     val networkArg = parseNetworkArg
+    val datadir = instance.authCredentials.datadir
     val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon"
     cmd.!!
   }
@@ -282,3 +281,11 @@ class ScalaRPCClient(instance: BitcoindInstance, username: String, password: Str
   }
 }
 
+object RPCClient {
+  private case class RPCClientImpl(instance: BitcoindInstance, materializer: ActorMaterializer) extends RPCClient
+
+  def apply(instance: BitcoindInstance, materializer: ActorMaterializer): RPCClient = {
+    RPCClientImpl(instance, materializer)
+  }
+
+}

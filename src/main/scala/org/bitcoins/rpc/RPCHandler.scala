@@ -6,6 +6,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.config.NetworkParameters
+import org.bitcoins.rpc.auth.AuthCredentials
 import org.bitcoins.rpc.config.BitcoindInstance
 import spray.json.{JsArray, JsNumber, JsObject, JsString, JsValue}
 
@@ -28,10 +29,12 @@ trait RPCHandler {
       |      "id": "foo"
       |  }
     """.stripMargin
-  def sendRequest(userName: String, password: String, instance: BitcoindInstance, jsObject: JsObject): Future[HttpResponse] = {
+  def sendRequest(instance: BitcoindInstance, jsObject: JsObject): Future[HttpResponse] = {
+    val username = instance.authCredentials.username
+    val password = instance.authCredentials.password
     val req = HttpRequest(method = HttpMethods.POST, uri = instance.uri,
       entity = HttpEntity(ContentTypes.`application/json`,jsObject.toString()))
-      .addCredentials(HttpCredentials.createBasicHttpCredentials(userName,password))
+      .addCredentials(HttpCredentials.createBasicHttpCredentials(username,password))
     sendRequest(req)
   }
 

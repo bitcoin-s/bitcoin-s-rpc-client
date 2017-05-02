@@ -2,6 +2,7 @@ package org.bitcoins.rpc.config
 
 import akka.http.scaladsl.model.Uri
 import org.bitcoins.core.config.NetworkParameters
+import org.bitcoins.rpc.auth.AuthCredentials
 
 /**
   * Created by chris on 4/29/17.
@@ -9,14 +10,15 @@ import org.bitcoins.core.config.NetworkParameters
 sealed trait BitcoindInstance {
 
   def network: NetworkParameters
-
   def uri: Uri
+  def authCredentials: AuthCredentials
 }
 
 object BitcoindInstance {
-  private case class BitcoindInstanceImpl(network: NetworkParameters, uri: Uri) extends BitcoindInstance
+  private case class BitcoindInstanceImpl(network: NetworkParameters, uri: Uri,
+                                          authCredentials: AuthCredentials) extends BitcoindInstance
 
-  def apply(network: NetworkParameters, uri: Uri): BitcoindInstance = {
-    BitcoindInstanceImpl(network,uri)
+  def apply(network: NetworkParameters, uri: Uri, authCredentials: AuthCredentials): BitcoindInstance = {
+    BitcoindInstanceImpl(network,uri,authCredentials)
   }
 }

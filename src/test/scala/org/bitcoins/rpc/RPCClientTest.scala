@@ -14,6 +14,7 @@ import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.config.BitcoindInstance
+import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 
@@ -23,29 +24,15 @@ import scala.concurrent.duration.DurationInt
 /**
   * Created by tom on 4/26/16.
   */
-class ScalaRPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
+class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   BeforeAndAfterAll with BitcoinSLogger {
-  implicit val actorSystem = ActorSystem("ScalaRPCClientTest")
+  implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher
-  def randomDirName: String = 0.until(5).map(_ => scala.util.Random.alphanumeric.head).mkString
-  val (datadir,username,password) = {
-    val d = "/tmp/" + randomDirName
-    val f = new java.io.File(d)
-    f.mkdir()
-    val conf = new java.io.File(f.getAbsolutePath + "/bitcoin.conf")
-    conf.createNewFile()
-    val username = "random_user_name"
-    val pass = randomDirName
-    val pw = new PrintWriter(conf)
-    pw.write("rpcuser=" + username + "\n")
-    pw.write("rpcpassword=" + pass + "\n")
-    pw.close()
-    (d,username,pass)
-  }
+  val authCredentials = TestUtil.authCredentials
   val network = RegTest
-  val instance = BitcoindInstance(network, Uri("http://localhost:" + network.rpcPort))
-  val test = new ScalaRPCClient(instance,username,password,materializer,datadir)
+  val instance = BitcoindInstance(network,Uri("http://localhost:" + network.rpcPort),authCredentials)
+  val test = RPCClient(instance,materializer)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {
