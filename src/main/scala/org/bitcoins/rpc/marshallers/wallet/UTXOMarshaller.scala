@@ -1,7 +1,7 @@
 package org.bitcoins.rpc.marshallers.wallet
 
 import org.bitcoins.core.crypto.DoubleSha256Digest
-import org.bitcoins.core.currency.{CurrencyUnits, Satoshis}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnits, Satoshis}
 import org.bitcoins.core.number.Int64
 import org.bitcoins.core.protocol.BitcoinAddress
 import org.bitcoins.core.protocol.script.ScriptPubKey
@@ -29,8 +29,7 @@ object UTXOMarshaller extends DefaultJsonProtocol {
       val vout = f(voutKey).convertTo[Int]
       val address = BitcoinAddress(f(addressKey).convertTo[String])
       val scriptPubKey = ScriptPubKey(f(scriptPubKeyKey).convertTo[String])
-      val sat = (f(amountKey).convertTo[Double] * CurrencyUnits.btcToSatoshiScalar).toLong
-      val amount = Satoshis(Int64(sat))
+      val amount = Bitcoins(f(amountKey).convertTo[Double])
       val confirmations = f(confirmationsKey).convertTo[Int]
       val spendable = f(spendableKey).convertTo[Boolean]
       val solvable = f(solvableKey).convertTo[Boolean]

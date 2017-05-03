@@ -2,7 +2,10 @@ package org.bitcoins.rpc.util
 
 import java.io.PrintWriter
 
+import akka.http.scaladsl.model.Uri
+import org.bitcoins.core.config.RegTest
 import org.bitcoins.rpc.auth.AuthCredentials
+import org.bitcoins.rpc.config.BitcoindInstance
 
 /**
   * Created by chris on 5/2/17.
@@ -27,6 +30,10 @@ trait TestUtil {
     pw.close()
     AuthCredentials(username,pass,d)
   }
+
+  lazy val network = RegTest
+  /** Test instance for [[BitcoindInstance]] -- this is connected to RegTest on your machine */
+  lazy val instance = BitcoindInstance(network,Uri("http://localhost:" + network.rpcPort),authCredentials)
 }
 
 object TestUtil extends TestUtil

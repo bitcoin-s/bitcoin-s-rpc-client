@@ -5,7 +5,7 @@ import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
-import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.number.Int64
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
@@ -201,7 +201,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
    * The getbalance RPC gets the balance in decimal bitcoins across all accounts or for a particular account.
    * https://bitcoin.org/en/developer-reference#getbalance */
   def getBalance: Future[CurrencyUnit] = {
-    sendCommand("getbalance").map(json => doubleToCurrencyUnit(json.fields("result").convertTo[Double]))
+    sendCommand("getbalance").map(json => Bitcoins(json.fields("result").convertTo[Double]))
   }
 
   /**
@@ -222,8 +222,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
       val result = json.fields("result")
       val f = result.asJsObject.fields
       val newTx = Transaction(f("hex").convertTo[String])
-      val sat = f("fee").convertTo[Double]
-      val fee = doubleToCurrencyUnit(sat)
+      val fee = Bitcoins(f("fee").convertTo[Double])
       val changePosition = f("changepos").convertTo[Int]
       (newTx,fee,changePosition)
     }
@@ -274,11 +273,6 @@ sealed trait RPCClient extends RPCMarshallerUtil
     if (instance.network == MainNet) "" else "-" + instance.network.name
   }
 
-  private def doubleToCurrencyUnit(d: Double): CurrencyUnit = {
-    val sat = d * CurrencyUnits.btcToSatoshiScalar
-    require(sat.toLong == sat)
-    Satoshis(Int64(sat.toLong))
-  }
 }
 
 object RPCClient {
