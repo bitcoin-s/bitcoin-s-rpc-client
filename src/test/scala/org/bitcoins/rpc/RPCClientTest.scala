@@ -29,10 +29,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher
-  val authCredentials = TestUtil.authCredentials
-  val network = RegTest
-  val instance = BitcoindInstance(network,Uri("http://localhost:" + network.rpcPort),authCredentials)
-  val test = RPCClient(instance,materializer)
+  val test = RPCClient(TestUtil.instance,materializer)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {
@@ -88,7 +85,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
 
   it must "be able to import a private key and then dump it" in {
     val key = ECPrivateKey()
-    val address = P2PKHAddress(key.publicKey,network)
+    val address = P2PKHAddress(key.publicKey,TestUtil.network)
     val imp = test.importPrivateKey(key)
     val dumpedKeyFuture = imp.flatMap(_ => test.dumpPrivateKey(address))
     whenReady(dumpedKeyFuture, timeout(5.seconds), interval(500.millis)) { dumpedKey =>
