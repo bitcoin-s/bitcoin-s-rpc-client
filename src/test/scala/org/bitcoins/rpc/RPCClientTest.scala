@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.config.RegTest
 import org.bitcoins.core.crypto.ECPrivateKey
-import org.bitcoins.core.currency.{CurrencyUnits, Satoshis}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnits, Satoshis}
 import org.bitcoins.core.number.Int64
 import org.bitcoins.core.protocol.P2PKHAddress
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
@@ -67,7 +67,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
 
   it must "get the balance" in {
     whenReady(test.getBalance, timeout(5.seconds), interval(500.millis)) { satoshis =>
-      satoshis must be (Satoshis(Int64(50L * CurrencyUnits.btcToSatoshiScalar)))
+      satoshis must be (Bitcoins(50))
     }
   }
 
