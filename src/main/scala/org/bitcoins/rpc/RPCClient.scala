@@ -242,7 +242,6 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")
       val f = result.asJsObject.fields
-      logger.error("f: " + f.toString)
       val signedTx = Transaction(f("hex").convertTo[String])
       val isComplete = f("complete").convertTo[Boolean]
       (signedTx,isComplete)
