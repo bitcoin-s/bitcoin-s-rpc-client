@@ -40,30 +40,25 @@ sealed trait RPCClient extends RPCMarshallerUtil
    * https://bitcoin.org/en/developer-reference#rpcs */
   def sendCommand(command : String) : Future[JsObject] = {
     val request = RPCHandler.buildRequest(command)
-    val result = RPCHandler.sendRequest(instance,request)
-    val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    val response = source.map(ent => ent.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
-    response.flatMap(r => checkForError(request,r))
+    sendRequest(request)
   }
 
   def sendCommand(command: String, arg: Int): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
-    val result = RPCHandler.sendRequest(instance,request)
-    val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
-    response.flatMap(r => checkForError(request,r))
+    sendRequest(request)
   }
 
   def sendCommand(command: String, arg: String): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
-    val result = RPCHandler.sendRequest(instance,request)
-    val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
-    response.flatMap(r => checkForError(request,r))
+    sendRequest(request)
   }
 
   def sendCommand(command: String, arg: JsArray): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
+    sendRequest(request)
+  }
+
+  private def sendRequest(request: JsObject): Future[JsObject] = {
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
     val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
