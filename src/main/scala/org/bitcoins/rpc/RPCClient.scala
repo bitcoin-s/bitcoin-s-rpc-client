@@ -42,31 +42,42 @@ sealed trait RPCClient extends RPCMarshallerUtil
     val request = RPCHandler.buildRequest(command)
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    source.map { ent =>
-      val decoded = ent.data.decodeString(ByteString.UTF_8)
-      decoded.parseJson.asJsObject
-    }
+    val response = source.map(ent => ent.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    response.flatMap(r => checkForError(request,r))
   }
 
   def sendCommand(command: String, arg: Int): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    response.flatMap(r => checkForError(request,r))
   }
 
   def sendCommand(command: String, arg: String): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    response.flatMap(r => checkForError(request,r))
   }
 
   def sendCommand(command: String, arg: JsArray): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
-    source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    val response = source.map(_.data.decodeString(ByteString.UTF_8).parseJson.asJsObject)
+    response.flatMap(r => checkForError(request,r))
+  }
+
+  private def checkForError(request: JsObject, response: JsObject): Future[JsObject] = {
+    val f = response.fields
+    val errOpt = f("error")
+    if (errOpt != JsNull) {
+      val errorMsg = "bitcoind returned error for request: " + request.toString + " error: " + errOpt.toString
+      logger.error(errorMsg)
+      Future.failed(new IllegalArgumentException(errorMsg))
+    } else Future.successful(response)
   }
 
   /** Starts the bitcoind instance */
@@ -236,9 +247,39 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")
       val f = result.asJsObject.fields
-      val signedTx = Transaction(f("result").convertTo[String])
+      logger.error("f: " + f.toString)
+      val signedTx = Transaction(f("hex").convertTo[String])
       val isComplete = f("complete").convertTo[Boolean]
       (signedTx,isComplete)
+    }
+  }
+
+  /**
+    * Sends the given raw transaction
+    * The sendrawtransaction RPC validates a transaction and broadcasts it to the peer-to-peer network.
+    * [[https://bitcoin.org/en/developer-reference#sendrawtransaction]]
+    */
+  def sendRawTransaction(tx: Transaction): Future[DoubleSha256Digest] = {
+    val cmd = "sendrawtransaction"
+    sendCommand(cmd,tx.hex).map { json =>
+      val result = json.fields("result")
+      val txid = DoubleSha256Digest(result.convertTo[String])
+      txid
+    }
+  }
+  /** Gets a raw transaction from the network
+    * The getrawtransaction RPC gets a hex-encoded serialized transaction or a JSON object describing the transaction.
+    * By default, Bitcoin Core only stores complete transaction data for UTXOs and your own transactions,
+    * so the RPC may fail on historic transactions unless you use the non-default txindex=1 in your
+    * Bitcoin Core startup settings.
+    * [[https://bitcoin.org/en/developer-reference#getrawtransaction]]
+    * */
+  def getRawTransaction(hash: DoubleSha256Digest): Future[Transaction] = {
+    val cmd = "getrawtransaction"
+    sendCommand(cmd,hash.hex).map { json =>
+      val result = json.fields("result")
+      val tx = Transaction(result.convertTo[String])
+      tx
     }
   }
 
