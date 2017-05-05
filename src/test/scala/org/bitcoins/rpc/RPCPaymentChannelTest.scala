@@ -17,7 +17,7 @@ import scala.concurrent.duration.DurationInt
   * Created by chris on 5/3/17.
   */
 class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures with BeforeAndAfterAll {
-
+/*
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher
@@ -47,5 +47,5 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
   override def afterAll = {
     materializer.shutdown()
     Await.result(test.stop,5.seconds)
-  }
+  }*/
 }
