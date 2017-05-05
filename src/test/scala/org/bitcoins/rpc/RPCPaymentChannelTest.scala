@@ -14,8 +14,8 @@ import org.bitcoins.core.script.crypto.HashType
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.channels.{PaymentChannelClient, PaymentChannelServer}
 import org.bitcoins.rpc.util.TestUtil
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt

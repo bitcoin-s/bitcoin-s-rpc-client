@@ -13,6 +13,8 @@ import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants
 import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest, WalletTransaction}
+import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
