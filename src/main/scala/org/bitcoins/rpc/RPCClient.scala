@@ -5,16 +5,15 @@ import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
-import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
-import org.bitcoins.core.number.Int64
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit}
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
-import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
-import org.bitcoins.rpc.config.BitcoindInstance
+import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo, WalletTransaction}
+import org.bitcoins.rpc.config.DaemonInstance
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
@@ -32,8 +31,8 @@ import scala.sys.process._
   */
 sealed trait RPCClient extends RPCMarshallerUtil
   with BitcoinSLogger with DefaultJsonProtocol {
-  def instance: BitcoindInstance
-  def materializer: ActorMaterializer
+  def instance: DaemonInstance
+  implicit val materializer: ActorMaterializer
   implicit val dispatcher = materializer.system.dispatcher
   /**
    * Refer to this reference for list of RPCs
@@ -277,6 +276,20 @@ sealed trait RPCClient extends RPCMarshallerUtil
     }
   }
 
+  /**
+    * The gettransaction RPC gets detailed information about an in-wallet transaction.
+    * [[https://bitcoin.org/en/developer-reference#gettransaction]]
+    */
+  def getTransaction(hash: DoubleSha256Digest): Future[WalletTransaction] = {
+    import org.bitcoins.rpc.marshallers.wallet.WalletTransactionMarshaller._
+    val cmd = "gettransaction"
+    sendCommand(cmd,hash.hex).map { json =>
+      val result = json.fields("result")
+      val walletTx = result.convertTo[WalletTransaction]
+      walletTx
+    }
+  }
+
   def listUnspent: Future[Seq[UTXO]] = {
     val cmd = "listunspent"
     sendCommand(cmd).map { json =>
@@ -311,9 +324,9 @@ sealed trait RPCClient extends RPCMarshallerUtil
 }
 
 object RPCClient {
-  private case class RPCClientImpl(instance: BitcoindInstance, materializer: ActorMaterializer) extends RPCClient
+  private case class RPCClientImpl(instance: DaemonInstance, materializer: ActorMaterializer) extends RPCClient
 
-  def apply(instance: BitcoindInstance, materializer: ActorMaterializer): RPCClient = {
+  def apply(instance: DaemonInstance, materializer: ActorMaterializer): RPCClient = {
     RPCClientImpl(instance, materializer)
   }
 

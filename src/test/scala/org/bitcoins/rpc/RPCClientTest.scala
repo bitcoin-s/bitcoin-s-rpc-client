@@ -9,6 +9,7 @@ import org.bitcoins.core.protocol.P2PKHAddress
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -24,7 +25,8 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher
-  val test = RPCClient(TestUtil.instance,materializer)
+  val instance = TestUtil.instance(TestUtil.network.rpcPort)
+  val test = RPCClient(instance,materializer)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {
@@ -89,20 +91,27 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   }
 
   it must "send a raw transaction to the network" in {
-    val scriptPubKey = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
-    val amount = CurrencyUnits.oneBTC
-    val output = TransactionOutput(amount, scriptPubKey)
-    val tx = Transaction(TransactionConstants.version,Nil,Seq(output), TransactionConstants.lockTime)
-    val generateBlocks = test.generate(101)
-    val funded: Future[(Transaction, CurrencyUnit, Int)] = generateBlocks.flatMap(_ => test.fundRawTransaction(tx))
-    val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => test.signRawTransaction(f._1))
-    val sent = signed.flatMap(s => test.sendRawTransaction(s._1))
+    val signed = generatedTx
+    val sent = signed.flatMap(s => test.sendRawTransaction(s))
     val getrawtx = sent.flatMap(s => test.getRawTransaction(s))
     val allInfo: Future[(Transaction,Transaction)] = signed.flatMap { s =>
-      getrawtx.map(tx => (s._1,tx))
+      getrawtx.map(tx => (s,tx))
     }
     whenReady(allInfo, timeout(5.seconds), interval(5.millis)) { info =>
       info._1 must be (info._2)
+    }
+  }
+
+  it must "get a transaction from the network" in {
+    val signed = generatedTx
+    val sent = signed.flatMap(tx => test.sendRawTransaction(tx))
+    val getTx = sent.flatMap(txId => test.getTransaction(txId))
+    val allInfo: Future[(Transaction,WalletTransaction)] = getTx.flatMap { gTx =>
+      signed.map(s => (s,gTx))
+    }
+    whenReady(allInfo, timeout(5.seconds), interval(500.millis)) { info =>
+      logger.error("info: " + info._2)
+      info._1 must be (info._2.transaction)
     }
   }
 
@@ -113,6 +122,16 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
   }
 
+  def generatedTx: Future[Transaction] = {
+    val scriptPubKey = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
+    val amount = CurrencyUnits.oneBTC
+    val output = TransactionOutput(amount, scriptPubKey)
+    val tx = Transaction(TransactionConstants.version,Nil,Seq(output), TransactionConstants.lockTime)
+    val generateBlocks = test.generate(101)
+    val funded: Future[(Transaction, CurrencyUnit, Int)] = generateBlocks.flatMap(_ => test.fundRawTransaction(tx))
+    val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => test.signRawTransaction(f._1))
+    signed.map(_._1)
+  }
   override def afterAll = {
     materializer.shutdown()
     Await.result(test.stop,5.seconds)

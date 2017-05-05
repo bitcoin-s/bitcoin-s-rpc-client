@@ -1,13 +1,11 @@
 package org.bitcoins.rpc
 
 import akka.actor.ActorSystem
-import akka.http.javadsl.model.headers.{HttpCredentials, RawRequestURI}
+import akka.http.javadsl.model.headers.HttpCredentials
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.config.NetworkParameters
-import org.bitcoins.rpc.auth.AuthCredentials
-import org.bitcoins.rpc.config.BitcoindInstance
+import org.bitcoins.rpc.config.DaemonInstance
 import spray.json.{JsArray, JsNumber, JsObject, JsString, JsValue}
 
 import scala.concurrent.Future
@@ -17,19 +15,9 @@ import scala.concurrent.Future
   */
 trait RPCHandler {
 
+  //implicit val materializer = ActorMaterializer()
 
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
-
-  val rawRequest =
-    """
-      |  {
-      |      "method": "getblockhash",
-      |      "params": [0],
-      |      "id": "foo"
-      |  }
-    """.stripMargin
-  def sendRequest(instance: BitcoindInstance, jsObject: JsObject): Future[HttpResponse] = {
+  def sendRequest(instance: DaemonInstance, jsObject: JsObject)(implicit m: ActorMaterializer): Future[HttpResponse] = {
     val username = instance.authCredentials.username
     val password = instance.authCredentials.password
     val req = HttpRequest(method = HttpMethods.POST, uri = instance.uri,
@@ -38,8 +26,8 @@ trait RPCHandler {
     sendRequest(req)
   }
 
-  def sendRequest(req: HttpRequest): Future[HttpResponse] = {
-    Http().singleRequest(req)
+  def sendRequest(req: HttpRequest)(implicit m: ActorMaterializer): Future[HttpResponse] = {
+    Http(m.system).singleRequest(req)
   }
 
   def buildRequest(methodName: String, param: Int): JsObject = {
