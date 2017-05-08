@@ -7,11 +7,8 @@ import org.bitcoins.core.config.RegTest
 import org.bitcoins.rpc.RPCClient
 import org.bitcoins.rpc.auth.AuthCredentials
 import org.bitcoins.rpc.config.DaemonInstance
-<<<<<<< c1255faf15a3a03241610b72271284e8c682acca
-
 import scala.concurrent.{ExecutionContext, Future}
-=======
->>>>>>> Refactoring TestUtil to be able to specify rpc port for bitcoind to bind to
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by chris on 5/2/17.

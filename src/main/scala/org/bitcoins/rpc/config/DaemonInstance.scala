@@ -19,6 +19,7 @@ object DaemonInstance {
   private case class DaemonInstanceImpl(network: NetworkParameters, uri: Uri, rpcUri: Uri,
                                         authCredentials: AuthCredentials) extends DaemonInstance
 
+
   def apply(network: NetworkParameters, uri: Uri, rpcUri: Uri, authCredentials: AuthCredentials): DaemonInstance = {
     DaemonInstanceImpl(network,uri,rpcUri,authCredentials)
   }
