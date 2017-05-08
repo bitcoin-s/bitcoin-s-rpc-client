@@ -1,6 +1,7 @@
 package org.bitcoins.rpc
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits}
@@ -9,6 +10,7 @@ import org.bitcoins.core.protocol.P2PKHAddress
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.bitcoincore.networking.AddedNodeInfo
 import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
@@ -25,13 +27,15 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher
-  val instance = TestUtil.instance(TestUtil.network.rpcPort)
+  val instance = TestUtil.instance(TestUtil.network.port,TestUtil.network.rpcPort)
   val test = RPCClient(instance,materializer)
+
+  val instance1 = TestUtil.instance(TestUtil.network.port - 10,TestUtil.network.rpcPort - 10)
+  val test1 = RPCClient(instance1,materializer)
   //bitcoind -rpcuser=$RPC_USER -rpcpassword=$RPC_PASS -regtest -txindex -daemon
 
   override def beforeAll: Unit = {
-    test.start
-    Thread.sleep(20000)
+    TestUtil.startNodes(Seq(test,test1))
   }
 
   "ScalaRPCClient" must "send a command to the command line and return the output" in {
@@ -122,6 +126,16 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
   }
 
+  it must "add a node, get the nodes info, then disconnect the node" in {
+    val added: Future[Unit] = test.addNode(test1.instance.uri)
+    val getInfo = added.flatMap(_ => test.getAddedNodeInfo)
+    whenReady(getInfo, timeout(5.seconds), interval(5.millis)) { uris =>
+      uris.size must be (1)
+      uris.head must be (AddedNodeInfo(Uri("localhost:18434"), false, Nil))
+
+    }
+  }
+
   def generatedTx: Future[Transaction] = {
     val scriptPubKey = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
     val amount = CurrencyUnits.oneBTC
@@ -133,7 +147,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     signed.map(_._1)
   }
   override def afterAll = {
+    Await.result(TestUtil.stopNodes(Seq(test,test1)), 5.seconds)
     materializer.shutdown()
-    Await.result(test.stop,5.seconds)
   }
 }

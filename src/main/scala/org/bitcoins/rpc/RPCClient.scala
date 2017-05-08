@@ -1,6 +1,6 @@
 package org.bitcoins.rpc
 
-import akka.http.scaladsl.model.HttpEntity
+import akka.http.scaladsl.model.{HttpEntity, Uri}
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
@@ -11,13 +11,13 @@ import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
-import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
+import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NetworkInfo, PeerInfo}
 import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo, WalletTransaction}
 import org.bitcoins.rpc.config.DaemonInstance
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
-import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.networking.{AddedNodeInfoMarshaller, NetworkRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import spray.json._
@@ -48,6 +48,11 @@ sealed trait RPCClient extends RPCMarshallerUtil
   }
 
   def sendCommand(command: String, arg: String): Future[JsObject] = {
+    val request = RPCHandler.buildRequest(command,arg)
+    sendRequest(request)
+  }
+
+  def sendCommand(command: String, arg: Boolean): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
     sendRequest(request)
   }
@@ -89,6 +94,34 @@ sealed trait RPCClient extends RPCMarshallerUtil
     response.map(_ => ())
   }
 
+  /**
+    * The addnode RPC attempts to add or remove a node from the addnode list, or to try a connection to a node once.
+    * [[https://bitcoin.org/en/developer-reference#addnode]]
+    */
+  def addNode(uri: Uri): Future[Unit] = {
+    val cmd = "addnode"
+    val arr = JsArray(JsString(uri.authority.toString), JsString("add"))
+    sendCommand(cmd,arr).map { json =>
+      ()
+    }
+  }
+
+  /** Disconnects following node from your node. */
+  def disconnectNode(uri: Uri): Future[Unit] = {
+    val cmd = "disconnectnode"
+    sendCommand(cmd,uri.authority.toString).map { json =>
+      ()
+    }
+  }
+
+  def getAddedNodeInfo: Future[Seq[AddedNodeInfo]] = {
+    val cmd = "getaddednodeinfo"
+    sendCommand(cmd).map { json =>
+      val f = json.fields
+      val arr = f("result").asInstanceOf[JsArray]
+      arr.elements.map(e => AddedNodeInfoMarshaller.AddedNodeInfoFormatter.read(e)
+    }
+  }
   /**
    * The number of blocks in the local best block chain. For a new node with only the hardcoded genesis block,
    * this number will be 0

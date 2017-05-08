@@ -11,14 +11,15 @@ sealed trait DaemonInstance {
 
   def network: NetworkParameters
   def uri: Uri
+  def rpcUri: Uri
   def authCredentials: AuthCredentials
 }
 
 object DaemonInstance {
-  private case class DaemonInstanceImpl(network: NetworkParameters, uri: Uri,
+  private case class DaemonInstanceImpl(network: NetworkParameters, uri: Uri, rpcUri: Uri,
                                           authCredentials: AuthCredentials) extends DaemonInstance
 
-  def apply(network: NetworkParameters, uri: Uri, authCredentials: AuthCredentials): DaemonInstance = {
-    DaemonInstanceImpl(network,uri,authCredentials)
+  def apply(network: NetworkParameters, uri: Uri, rpcUri: Uri, authCredentials: AuthCredentials): DaemonInstance = {
+    DaemonInstanceImpl(network,uri,rpcUri,authCredentials)
   }
 }
