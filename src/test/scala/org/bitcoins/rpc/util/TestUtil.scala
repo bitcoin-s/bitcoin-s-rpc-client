@@ -49,7 +49,12 @@ trait TestUtil {
 
   def startNodes(clients: Seq[RPCClient]): Unit = {
     clients.map(_.start)
-    Thread.sleep(45000)
+    Thread.sleep(60000)
+  }
+
+  def connectTwoNodes(node1: RPCClient, node2: RPCClient)(implicit ec: ExecutionContext): Future[Unit] = {
+    val added: Future[Unit] = node1.addNode(node2.instance.uri)
+    added.flatMap(_ => node2.addNode(node1.instance.uri))
   }
 
   def stopNodes(clients: Seq[RPCClient])(implicit ec: ExecutionContext): Future[Unit] = {

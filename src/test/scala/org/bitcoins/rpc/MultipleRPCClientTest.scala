@@ -25,11 +25,16 @@ class MultipleRPCClientTest extends FlatSpec with MustMatchers with ScalaFutures
 
   override def beforeAll: Unit = {
     TestUtil.startNodes(Seq(client1,client2))
+    val connected = TestUtil.connectTwoNodes(client1,client2)
+    Await.result(connected,10.seconds)
   }
 
   "MultipleRPCClientTest" must "have the same blockchain tip after generating a block" in {
     val hash: Future[DoubleSha256Digest] = client1.generate(1).map(_.head)
-    val bestBlockHash: Future[DoubleSha256Digest] = hash.flatMap(_ => client2.getBestBlockHash)
+    val bestBlockHash: Future[DoubleSha256Digest] = hash.flatMap { _ =>
+      Thread.sleep(2500)
+      client2.getBestBlockHash
+    }
     val hashes: Future[(DoubleSha256Digest,DoubleSha256Digest)] = bestBlockHash.flatMap { best =>
       hash.map(h => (h,best))
     }
