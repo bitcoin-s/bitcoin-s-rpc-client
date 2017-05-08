@@ -119,7 +119,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand(cmd).map { json =>
       val f = json.fields
       val arr = f("result").asInstanceOf[JsArray]
-      arr.elements.map(e => AddedNodeInfoMarshaller.AddedNodeInfoFormatter.read(e)
+      arr.elements.map(e => AddedNodeInfoMarshaller.AddedNodeInfoFormatter.read(e))
     }
   }
   /**

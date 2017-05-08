@@ -10,7 +10,7 @@ import org.bitcoins.core.protocol.P2PKHAddress
 import org.bitcoins.core.protocol.script.EmptyScriptPubKey
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
-import org.bitcoins.rpc.bitcoincore.networking.AddedNodeInfo
+import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
 import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
@@ -114,7 +114,6 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
       signed.map(s => (s,gTx))
     }
     whenReady(allInfo, timeout(5.seconds), interval(500.millis)) { info =>
-      logger.error("info: " + info._2)
       info._1 must be (info._2.transaction)
     }
   }
@@ -128,11 +127,24 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
 
   it must "add a node, get the nodes info, then disconnect the node" in {
     val added: Future[Unit] = test.addNode(test1.instance.uri)
-    val getInfo = added.flatMap(_ => test.getAddedNodeInfo)
-    whenReady(getInfo, timeout(5.seconds), interval(5.millis)) { uris =>
+    val getInfo = added.flatMap { _ =>
+      Thread.sleep(2500)
+      test.getAddedNodeInfo
+    }
+    val disconnect = getInfo.flatMap(_ => test.disconnectNode(test1.instance.uri))
+    val getInfo2 = disconnect.flatMap { _ =>
+      Thread.sleep(2500)
+      test.getAddedNodeInfo
+    }
+    val result: Future[(Seq[AddedNodeInfo], Seq[AddedNodeInfo])] = getInfo.flatMap { g =>
+      getInfo2.map(g2 => (g,g2))
+    }
+    whenReady(result, timeout(10.seconds), interval(5.millis)) { case (uris,disconnectedUris) =>
       uris.size must be (1)
-      uris.head must be (AddedNodeInfo(Uri("localhost:18434"), false, Nil))
-
+      uris.head must be (AddedNodeInfo(Uri("localhost:18434"), true,
+        Seq(NodeAddress(Uri("/127.0.0.1:18434"), OutboundConnection))))
+      //after we disconnect the list must be empty
+      disconnectedUris.exists(_.connected) must be (false)
     }
   }
 
