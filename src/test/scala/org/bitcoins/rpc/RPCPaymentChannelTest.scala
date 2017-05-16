@@ -2,21 +2,29 @@ package org.bitcoins.rpc
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.crypto.ECPrivateKey
-import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits}
+import org.bitcoins.core.channels.{AnchorTransaction, PaymentChannelAwaitingAnchorTx, PaymentChannelInProgress}
+import org.bitcoins.core.crypto.{ECDigitalSignature, ECPrivateKey}
+import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
-import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, MultiSignatureScriptPubKey}
+import org.bitcoins.core.number.Int64
+import org.bitcoins.core.policy.Policy
+import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, MultiSignatureScriptPubKey, WitnessScriptPubKeyV0}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput, WitnessTransaction}
+import org.bitcoins.core.script.crypto.HashType
+import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.channels.{PaymentChannelClient, PaymentChannelServer}
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
+import scala.util.Try
 /**
   * Created by chris on 5/3/17.
   */
-class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures with BeforeAndAfterAll {
+class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
+  with BeforeAndAfterAll with BitcoinSLogger {
 
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
@@ -29,25 +37,59 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
 
   override def beforeAll: Unit = {
     TestUtil.startNodes(Seq(client1,client2))
-    val connected = client1.addNode(client1.instance.uri).map { _ =>
-      client2.addNode(client2.instance.uri)
+    val connected = client1.addNode(client2.instance.uri).flatMap { _ =>
+      val u = client2.addNode(client1.instance.uri)
+      val generateBlocks = u.flatMap(_ => client1.generate(300))
+      Thread.sleep(5000)
+      generateBlocks
     }
-    val generateBlocks = connected.flatMap(_ => client1.generate(101))
-    Await.result(generateBlocks,5.seconds)
+
+    val generateBlocksClient2 = connected.flatMap(_ => client2.generate(175))
+    Await.result(generateBlocksClient2,10.seconds)
   }
 
   "RPCPaymentChannels" must "create a payment channel from the client's perspective" in {
-    val privKey1 = ECPrivateKey()
-    val privKey2 = ECPrivateKey()
-    val lockTimeScriptPubKey = ScriptGenerators.lockTimeScriptPubKey.sample.get._1
-    val multiSig = MultiSignatureScriptPubKey(2,Seq(privKey1.publicKey, privKey2.publicKey))
-    val scriptPubKey = EscrowTimeoutScriptPubKey(multiSig,lockTimeScriptPubKey)
-    val output = TransactionOutput(CurrencyUnits.oneBTC, scriptPubKey)
-    val unfunded = Transaction(TransactionConstants.version,Nil,Seq(output), TransactionConstants.lockTime)
-    val fundedTx: Future[(Transaction, CurrencyUnit, Int)] = client1.fundRawTransaction(unfunded)
-    val signedTx = fundedTx.flatMap(f => client1.signRawTransaction(f._1))
-    val sent = signedTx.flatMap(tx => client1.sendRawTransaction(tx._1))
+    val clientPrivKey = ECPrivateKey()
+    val clientPubKey = clientPrivKey.publicKey
+    val serverPrivKey = ECPrivateKey()
+    val serverPubKey = serverPrivKey.publicKey
+    val (lockTimeScriptPubKey,_) = ScriptGenerators.lockTimeScriptPubKey.sample.get
+    val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
+    val serverSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
 
+    val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,clientPubKey,serverPubKey,
+      lockTimeScriptPubKey,CurrencyUnits.oneBTC)
+    val generatedBlocks = pcClient.flatMap { _ =>
+      Thread.sleep(5000)
+      client1.generate(10)
+    }
+
+    val pcServer: Future[PaymentChannelServer] = generatedBlocks.flatMap { _ =>
+      pcClient.flatMap { cli =>
+        //wait for client1 to propogate tx to client2
+        Thread.sleep(5000)
+        PaymentChannelServer(client2, cli.channel.anchorTx.tx.txId, cli.channel.lock)
+      }
+    }
+    val amount = Satoshis(Int64(1000))
+    val clientSigned: Future[(PaymentChannelClient,WitnessTransaction)] = generatedBlocks.flatMap { _ =>
+      pcClient.flatMap(pc => pc.update(clientSPK, serverSPK, amount, clientPrivKey))
+    }
+    val pcServerUpdated: Future[PaymentChannelServer] = clientSigned.flatMap { cli =>
+      pcServer.flatMap { server =>
+        server.update(cli._2,serverSPK,amount,serverPrivKey)
+      }
+    }
+
+    val closed = pcServerUpdated.flatMap(_.close)
+    val genBlocks2 = closed.flatMap(_ => client1.generate(10))
+    val closedConfs = genBlocks2.flatMap { _ =>
+      closed.flatMap(tx => client1.getConfirmations(tx.txId))
+    }
+    whenReady(closedConfs.failed, timeout(30.seconds), interval(500.millis)) { confs =>
+      throw confs
+      //confs must be (10)
+    }
   }
 
   override def afterAll = {

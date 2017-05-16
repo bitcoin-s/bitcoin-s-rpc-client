@@ -92,7 +92,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
   def start: Unit = {
     val networkArg = parseNetworkArg
     val datadir = instance.authCredentials.datadir
-    val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon"
+    val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon -reindex -txindex"
     cmd.!!
   }
 
@@ -387,7 +387,8 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * */
   def getRawTransaction(hash: DoubleSha256Digest): Future[Transaction] = {
     val cmd = "getrawtransaction"
-    sendCommand(cmd,hash.hex).map { json =>
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    sendCommand(cmd,flipped).map { json =>
       val result = json.fields("result")
       val tx = Transaction(result.convertTo[String])
       tx
@@ -401,10 +402,26 @@ sealed trait RPCClient extends RPCMarshallerUtil
   def getTransaction(hash: DoubleSha256Digest): Future[WalletTransaction] = {
     import org.bitcoins.rpc.marshallers.wallet.WalletTransactionMarshaller._
     val cmd = "gettransaction"
-    sendCommand(cmd,hash.hex).map { json =>
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    sendCommand(cmd,flipped).map { json =>
       val result = json.fields("result")
       val walletTx = result.convertTo[WalletTransaction]
       walletTx
+    }
+  }
+
+  /** Gets the confirmations for a transaction on the network.
+    * Note the daemon instance must be started with -txindex for this to work for
+    * arbitrary transactions on the network
+    */
+  def getConfirmations(hash: DoubleSha256Digest): Future[Int] = {
+    val cmd = "getrawtransaction"
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    val args = JsArray(JsString(flipped), JsBoolean(true))
+    sendCommand(cmd,args).map { json =>
+      val result = json.fields("result")
+      val confs = result.asJsObject.fields("confirmations")
+      confs.convertTo[Int]
     }
   }
 

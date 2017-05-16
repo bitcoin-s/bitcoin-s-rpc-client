@@ -149,7 +149,9 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "send a raw transaction to the network" in {
     val signed = generatedTx
     val sent = signed.flatMap(s => test.sendRawTransaction(s))
-    val getrawtx = sent.flatMap(s => test.getRawTransaction(s))
+    val getrawtx = sent.flatMap { _ =>
+      signed.flatMap(s => test.getRawTransaction(s.txId))
+    }
     val allInfo: Future[(Transaction,Transaction)] = signed.flatMap { s =>
       getrawtx.map(tx => (s,tx))
     }
@@ -161,7 +163,9 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "get a transaction from the network" in {
     val signed = generatedTx
     val sent = signed.flatMap(tx => test.sendRawTransaction(tx))
-    val getTx = sent.flatMap(txId => test.getTransaction(txId))
+    val getTx = sent.flatMap { _ =>
+      signed.flatMap(s => test.getTransaction(s.txId))
+    }
     val allInfo: Future[(Transaction,WalletTransaction)] = getTx.flatMap { gTx =>
       signed.map(s => (s,gTx))
     }
