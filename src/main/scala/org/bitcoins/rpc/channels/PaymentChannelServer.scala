@@ -14,7 +14,6 @@ import org.bitcoins.core.script.interpreter.ScriptInterpreter
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest}
-
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -85,7 +84,6 @@ sealed trait PaymentChannelServer extends BitcoinSLogger {
     case _: PaymentChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot close a payment channel that is already closed"))
   }
-
   /** Helper function to close a payment channel */
   private def close(clientSigned: PaymentChannelInProgressClientSigned, serverSPK: ScriptPubKey,
                     serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[Transaction] = {
