@@ -47,7 +47,6 @@ sealed trait ImportMultiRequest {
   def label: String
 
 
-
   def network: NetworkParameters
 }
 
