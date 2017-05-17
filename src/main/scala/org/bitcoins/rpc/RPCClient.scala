@@ -12,7 +12,7 @@ import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NetworkInfo, PeerInfo}
-import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo, WalletTransaction}
+import org.bitcoins.rpc.bitcoincore.wallet._
 import org.bitcoins.rpc.config.DaemonInstance
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
@@ -251,6 +251,8 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand("getbestblockhash").map(json => DoubleSha256Digest(json.fields("result").convertTo[String]))
   }
 
+  //Wallet stuff
+
   /** Funds the given transaction with outputs in the bitcoin core wallet
     * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
     * */
@@ -263,6 +265,22 @@ sealed trait RPCClient extends RPCMarshallerUtil
       val fee = Bitcoins(f("fee").convertTo[Double])
       val changePosition = f("changepos").convertTo[Int]
       (newTx,fee,changePosition)
+    }
+  }
+
+  def importMulti(request: ImportMultiRequest): Future[ImportMultiResponse] = {
+    import spray.json._
+    import org.bitcoins.rpc.marshallers.wallet.ImportMultiRequestMarshaller._
+    import org.bitcoins.rpc.marshallers.wallet.ImportMultiResponseMarshaller._
+    val json = request.toJson
+    val array = JsArray(JsArray(json))
+    val cmd = "importmulti"
+    sendCommand(cmd,array).map { json =>
+      val result = json.fields("result")
+      val responses = result.asInstanceOf[JsArray].elements.map { j =>
+        ImportMultiResponseFormatter.read(j)
+      }
+      responses.head
     }
   }
 

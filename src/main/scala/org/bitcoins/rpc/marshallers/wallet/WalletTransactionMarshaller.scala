@@ -36,8 +36,6 @@ object WalletTransactionMarshaller extends DefaultJsonProtocol with BitcoinSLogg
 
     override def read(value: JsValue): WalletTransaction = {
       val f = value.asJsObject.fields
-      logger.error("amoutn: " + f(amountKey))
-      logger.error("fee: " + f(feeKey))
       val amount = Bitcoins(f(amountKey).convertTo[Double])
       val fee = Bitcoins(f(feeKey).convertTo[Double])
       val confirmations = f(confirmationsKey).convertTo[Int]

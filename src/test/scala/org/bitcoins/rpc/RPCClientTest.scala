@@ -6,12 +6,12 @@ import akka.stream.ActorMaterializer
 import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits}
 import org.bitcoins.core.gen.ScriptGenerators
-import org.bitcoins.core.protocol.P2PKHAddress
-import org.bitcoins.core.protocol.script.EmptyScriptPubKey
+import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
+import org.bitcoins.core.protocol.script.{EmptyScriptPubKey, P2SHScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
-import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
+import org.bitcoins.rpc.bitcoincore.wallet.{ImportMultiRequest, WalletTransaction}
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -91,6 +91,33 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     val dumpedKeyFuture = imp.flatMap(_ => test.dumpPrivateKey(address))
     whenReady(dumpedKeyFuture, timeout(5.seconds), interval(500.millis)) { dumpedKey =>
       dumpedKey must be (key)
+    }
+  }
+
+  it must "be able to import a p2sh script successfully" in {
+    val (redeemScript,privKeys) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
+    val pubKeys = privKeys.map(_.publicKey)
+    val scriptPubKey = P2SHScriptPubKey(redeemScript)
+    val request = ImportMultiRequest(Left(scriptPubKey),Some(0L),Some(redeemScript),pubKeys,Nil,
+      true,true,instance.network)
+    val response = test.importMulti(request)
+    whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
+      r.success must be (true)
+    }
+  }
+
+
+  it must "be able to import a p2sh address successfully" in {
+    //make sure script size is less than 520 bytes, this is a consensus rule in bitcoin core
+    val (redeemScript,privKeys) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
+    val pubKeys = privKeys.map(_.publicKey)
+    val scriptPubKey = P2SHScriptPubKey(redeemScript)
+    val addr = P2SHAddress(scriptPubKey,TestUtil.network)
+    val request = ImportMultiRequest(Right(addr),None,Some(redeemScript),pubKeys,
+      privKeys,true,false, instance.network)
+    val response = test.importMulti(request)
+    whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
+      r.success must be (true)
     }
   }
 
