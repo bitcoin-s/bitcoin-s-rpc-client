@@ -132,7 +132,6 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
   }
 
-
   it must "be able to import a p2sh address successfully using importmulti" in {
     val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
     val pubKeys = privKeys.map(_.publicKey)
