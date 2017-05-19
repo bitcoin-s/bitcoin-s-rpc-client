@@ -6,9 +6,10 @@ import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
 import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit}
+import org.bitcoins.core.protocol.script.ScriptPubKey
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
-import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NetworkInfo, PeerInfo}
@@ -265,6 +266,23 @@ sealed trait RPCClient extends RPCMarshallerUtil
       val fee = Bitcoins(f("fee").convertTo[Double])
       val changePosition = f("changepos").convertTo[Int]
       (newTx,fee,changePosition)
+    }
+  }
+
+  /**
+    * The importaddress RPC adds an address or pubkey script to the wallet without the associated private key,
+    * allowing you to watch for transactions affecting that address or pubkey script without being able to spend
+    * any of its outputs.
+    * [[https://bitcoin.org/en/developer-reference#importaddress]]
+    */
+  def importAddress(scriptOrAddress: Either[ScriptPubKey, BitcoinAddress]): Future[Unit] = {
+    val cmd = "importaddress"
+    val hex = scriptOrAddress match {
+      case Left(script) => BitcoinSUtil.encodeHex(script.asmBytes)
+      case Right(addr) => addr.value
+    }
+    sendCommand(cmd,hex).map { json =>
+      ()
     }
   }
 

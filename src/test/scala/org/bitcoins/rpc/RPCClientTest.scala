@@ -94,7 +94,27 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
   }
 
-  it must "be able to import a p2sh script successfully" in {
+  it must "be able to import a p2sh script successfully using importaddress" in {
+    val (redeemScript,_) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
+    val response = test.importAddress(Left(redeemScript))
+    whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
+
+    }
+  }
+
+
+  it must "be able to import a p2sh address successfully using importaddress" in {
+    //make sure script size is less than 520 bytes, this is a consensus rule in bitcoin core
+    val (redeemScript,_) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
+    val scriptPubKey = P2SHScriptPubKey(redeemScript)
+    val addr = P2SHAddress(scriptPubKey,TestUtil.network)
+    val response = test.importAddress(Right(addr))
+    whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
+
+    }
+  }
+
+  it must "be able to import a p2sh script successfully using importmulti" in {
     val (redeemScript,privKeys) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
     val pubKeys = privKeys.map(_.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)
@@ -107,7 +127,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   }
 
 
-  it must "be able to import a p2sh address successfully" in {
+  it must "be able to import a p2sh address successfully using importmulti" in {
     //make sure script size is less than 520 bytes, this is a consensus rule in bitcoin core
     val (redeemScript,privKeys) = ScriptGenerators.pickRandomNonP2SHScriptPubKey.suchThat(_._1.bytes.size < 520).sample.get
     val pubKeys = privKeys.map(_.publicKey)
