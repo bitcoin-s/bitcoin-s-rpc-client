@@ -11,7 +11,7 @@ import org.bitcoins.core.protocol.script.{EmptyScriptPubKey, P2SHScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
-import org.bitcoins.rpc.bitcoincore.wallet.{ImportMultiRequest, WalletTransaction}
+import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest, WalletTransaction}
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -79,7 +79,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "fund a raw transaction" in {
     val output = TransactionOutput(CurrencyUnits.oneBTC,EmptyScriptPubKey)
     val unfunded = Transaction(TransactionConstants.version,Nil,Seq(output),TransactionConstants.lockTime)
-    whenReady(test.fundRawTransaction(unfunded), timeout(5.seconds), interval(500.millis)) { case (tx,fee,changepos) =>
+    whenReady(test.fundRawTransaction(unfunded, None), timeout(5.seconds), interval(500.millis)) { case (tx,fee,changepos) =>
       tx.inputs.nonEmpty must be (true)
     }
   }
@@ -201,7 +201,8 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     val output = TransactionOutput(amount, scriptPubKey)
     val tx = Transaction(TransactionConstants.version,Nil,Seq(output), TransactionConstants.lockTime)
     val generateBlocks = test.generate(101)
-    val funded: Future[(Transaction, CurrencyUnit, Int)] = generateBlocks.flatMap(_ => test.fundRawTransaction(tx))
+    val opts = Some(FundRawTransactionOptions(None,None,Some(true),None,None,None,Nil))
+    val funded: Future[(Transaction, CurrencyUnit, Int)] = generateBlocks.flatMap(_ => test.fundRawTransaction(tx,opts))
     val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => test.signRawTransaction(f._1))
     signed.map(_._1)
   }

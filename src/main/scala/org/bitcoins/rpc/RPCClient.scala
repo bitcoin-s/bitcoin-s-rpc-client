@@ -63,6 +63,11 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendRequest(request)
   }
 
+  def sendCommand(command: String, arg1: String, args: JsObject): Future[JsObject] = {
+    val request = RPCHandler.buildRequest(command,arg1,args)
+    sendRequest(request)
+  }
+
   private def sendRequest(request: JsObject): Future[JsObject] = {
     val result = RPCHandler.sendRequest(instance,request)
     val source: Future[HttpEntity.Strict] = result.flatMap(_.entity.toStrict(5.seconds)(materializer))
@@ -257,7 +262,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
   /** Funds the given transaction with outputs in the bitcoin core wallet
     * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
     * */
-  def fundRawTransaction(tx: Transaction): Future[(Transaction, CurrencyUnit, Int)] = {
+  def fundRawTransaction(tx: Transaction, opts: Option[FundRawTransactionOptions]): Future[(Transaction, CurrencyUnit, Int)] = {
     val cmd = "fundrawtransaction"
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")

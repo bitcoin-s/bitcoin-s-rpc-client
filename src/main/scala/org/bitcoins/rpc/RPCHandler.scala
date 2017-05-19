@@ -53,6 +53,11 @@ trait RPCHandler {
   def buildRequest(methodName: String): JsObject = {
     buildRequest(methodName,JsArray(Vector()))
   }
+
+  def buildRequest(methodName: String, param1: String, opt: JsObject): JsObject = {
+    val arr = JsArray(JsString(param1),opt)
+    buildRequest(methodName,arr)
+  }
 }
 
 object RPCHandler extends RPCHandler
