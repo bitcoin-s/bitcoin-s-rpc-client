@@ -413,21 +413,6 @@ sealed trait RPCClient extends RPCMarshallerUtil
     }
   }
 
-  /** Gets the confirmations for a transaction on the network.
-    * Note the daemon instance must be started with -txindex for this to work for
-    * arbitrary transactions on the network
-    */
-  def getConfirmations(hash: DoubleSha256Digest): Future[Int] = {
-    val cmd = "getrawtransaction"
-    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
-    val args = JsArray(JsString(flipped), JsBoolean(true))
-    sendCommand(cmd,args).map { json =>
-      val result = json.fields("result")
-      val confs = result.asJsObject.fields("confirmations")
-      confs.convertTo[Int]
-    }
-  }
-
   def listUnspent: Future[Seq[UTXO]] = {
     val cmd = "listunspent"
     sendCommand(cmd).map { json =>

@@ -84,6 +84,7 @@ sealed trait PaymentChannelServer extends BitcoinSLogger {
     case _: PaymentChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot close a payment channel that is already closed"))
   }
+
   /** Helper function to close a payment channel */
   private def close(clientSigned: PaymentChannelInProgressClientSigned, serverSPK: ScriptPubKey,
                     serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[Transaction] = {

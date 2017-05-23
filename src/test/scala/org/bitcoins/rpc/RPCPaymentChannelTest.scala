@@ -54,7 +54,6 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     val (lockTimeScriptPubKey,_) = ScriptGenerators.lockTimeScriptPubKey.sample.get
     val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
     val serverSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
-<<<<<<< f5118a9280496f8d78fd04669480f96d7a4cedae
 
     val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,serverPubKey,
       lockTimeScriptPubKey,CurrencyUnits.oneBTC)
