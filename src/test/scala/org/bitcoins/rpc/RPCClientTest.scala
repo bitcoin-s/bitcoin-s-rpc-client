@@ -4,8 +4,9 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.crypto.ECPrivateKey
-import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
+import org.bitcoins.core.number.Int64
 import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
 import org.bitcoins.core.protocol.script.{EmptyScriptPubKey, P2SHScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
@@ -73,6 +74,12 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "list utxos" in {
     whenReady(test.listUnspent, timeout(5.seconds), interval(500.millis)) { utxos =>
       utxos.nonEmpty must be (true)
+    }
+  }
+
+  it must "estimate a fee for inclusion in a block" in {
+    whenReady(test.estimateFee(10), timeout(5.seconds), interval(500.millis)) { fee =>
+      fee must be (Satoshis(Int64(50000)))
     }
   }
 

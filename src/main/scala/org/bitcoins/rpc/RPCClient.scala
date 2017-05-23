@@ -5,7 +5,9 @@ import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
-import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, Satoshis}
+import org.bitcoins.core.number.Int64
+import org.bitcoins.core.policy.Policy
 import org.bitcoins.core.protocol.script.ScriptPubKey
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
@@ -258,6 +260,26 @@ sealed trait RPCClient extends RPCMarshallerUtil
   }
 
   //Wallet stuff
+  /**
+    * The estimatefee RPC estimates the transaction fee per kilobyte that needs to be paid for a transaction to be
+    * included within a certain number of blocks.
+    * [[https://bitcoin.org/en/developer-reference#estimatefee]]
+    * @param numBlocks - this needs to be between the number 2 and 25
+    * @return The estimated fee the transaction should pay in order to be included within the specified number of blocks.
+    *         If the node doesn’t have enough information to make an estimate, the value -1 will be returned
+    */
+  def estimateFee(numBlocks: Int): Future[CurrencyUnit] = {
+    val cmd = "estimatefee"
+    sendCommand(cmd,numBlocks).map { json =>
+      val result = json.fields("result").convertTo[Double]
+      if (result == -1) {
+        //defaultFee is satoshis/byte, so multiply by 1000 to get satoshis/kb
+        Policy.defaultFee * Satoshis(Int64(1000))
+      } else {
+        Bitcoins(result)
+      }
+    }
+  }
 
   /** Funds the given transaction with outputs in the bitcoin core wallet
     * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
