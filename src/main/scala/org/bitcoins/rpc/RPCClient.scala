@@ -28,6 +28,7 @@ import spray.json._
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.sys.process._
+import scala.util.Try
 
 /**
   * Created by Tom on 1/14/2016.
@@ -391,6 +392,21 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand(cmd).map { json =>
       val utxos: Seq[UTXO] = json.fields("result").convertTo[Seq[UTXO]]
       utxos
+    }
+  }
+
+  /** Gets the confirmations for a transaction on the network.
+    * Note the daemon instance must be started with -txindex for this to work for
+    * arbitrary transactions on the network
+    */
+  def getConfirmations(hash: DoubleSha256Digest): Future[Option[Long]] = {
+    val cmd = "getrawtransaction"
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    val args = JsArray(JsString(flipped), JsBoolean(true))
+    sendCommand(cmd,args).map { json =>
+      val result = json.fields("result")
+      val confs = Try(result.asJsObject.fields("confirmations").convertTo[Long])
+      Some(confs.getOrElse(0L))
     }
   }
 

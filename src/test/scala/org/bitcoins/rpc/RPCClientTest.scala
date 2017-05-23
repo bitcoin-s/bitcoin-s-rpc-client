@@ -3,14 +3,14 @@ package org.bitcoins.rpc
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.crypto.ECPrivateKey
+import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
 import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
 import org.bitcoins.core.number.Int64
 import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
 import org.bitcoins.core.protocol.script.{EmptyScriptPubKey, P2SHScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
-import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest, WalletTransaction}
 import org.bitcoins.rpc.util.TestUtil
@@ -169,6 +169,31 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
     whenReady(allInfo, timeout(5.seconds), interval(500.millis)) { info =>
       info._1 must be (info._2.transaction)
+    }
+  }
+
+  it must "get the number of confirmations on a transaction" in {
+    val signed = generatedTx
+    val sent = signed.flatMap(s => test.sendRawTransaction(s))
+    val getConfsZero = sent.flatMap{ txid =>
+      val flippedEndianess = DoubleSha256Digest(BitcoinSUtil.flipEndianness(txid.hex))
+      test.getConfirmations(flippedEndianess)
+    }
+    val generated = sent.flatMap(_ => test.generate(10))
+    val getConfs10 = generated.flatMap { _ =>
+      signed.flatMap { tx =>
+        test.getConfirmations(tx.txId)
+      }
+    }
+
+    //test what happens when a tx is not broadcast at all
+    val notBroadcast = generatedTx
+    val notBroadcastConfs = notBroadcast.flatMap(tx => test.getConfirmations(tx.txId))
+    val successful = getConfsZero.flatMap(z => getConfs10.map(t => (z,t)))
+    val confs = successful.flatMap(s => notBroadcastConfs.failed.map(t => (Seq(s._1,s._2),t)))
+    whenReady(confs, timeout(5.seconds), interval(500.millis)) { c =>
+      c._1(0) must be (Some(0))
+      c._1(1) must be (Some(10))
     }
   }
 

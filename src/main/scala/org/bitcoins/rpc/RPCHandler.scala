@@ -13,9 +13,7 @@ import scala.concurrent.Future
 /**
   * Created by chris on 4/25/17.
   */
-trait RPCHandler {
-
-  //implicit val materializer = ActorMaterializer()
+sealed trait RPCHandler {
 
   def sendRequest(instance: DaemonInstance, jsObject: JsObject)(implicit m: ActorMaterializer): Future[HttpResponse] = {
     val username = instance.authCredentials.username
