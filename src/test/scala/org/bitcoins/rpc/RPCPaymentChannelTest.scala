@@ -49,15 +49,13 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
   }
 
   "RPCPaymentChannels" must "create a payment channel from the client's perspective" in {
-    val clientPrivKey = ECPrivateKey()
-    val clientPubKey = clientPrivKey.publicKey
     val serverPrivKey = ECPrivateKey()
     val serverPubKey = serverPrivKey.publicKey
     val (lockTimeScriptPubKey,_) = ScriptGenerators.lockTimeScriptPubKey.sample.get
     val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
     val serverSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
 
-    val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,clientPubKey,serverPubKey,
+    val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,serverPubKey,
       lockTimeScriptPubKey,CurrencyUnits.oneBTC)
     val generatedBlocks = pcClient.flatMap { _ =>
       Thread.sleep(5000)
@@ -71,24 +69,26 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
         PaymentChannelServer(client2, cli.channel.anchorTx.tx.txId, cli.channel.lock)
       }
     }
-    val amount = Satoshis(Int64(1000))
-    val clientSigned: Future[(PaymentChannelClient,WitnessTransaction)] = generatedBlocks.flatMap { _ =>
-      pcClient.flatMap(pc => pc.update(clientSPK, serverSPK, amount, clientPrivKey))
+    val amount = Policy.minPaymentChannelAmount
+    val clientSigned: Future[(PaymentChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
+      pcClient.flatMap(pc => pc.update(clientSPK, amount))
     }
+
     val pcServerUpdated: Future[PaymentChannelServer] = clientSigned.flatMap { cli =>
       pcServer.flatMap { server =>
-        server.update(cli._2,serverSPK,amount,serverPrivKey)
+        server.update(cli._2,serverPrivKey)
       }
     }
 
-    val closed = pcServerUpdated.flatMap(_.close)
-    val genBlocks2 = closed.flatMap(_ => client1.generate(10))
-    val closedConfs = genBlocks2.flatMap { _ =>
-      closed.flatMap(tx => client1.getConfirmations(tx.txId))
+    val closed: Future[Transaction] = pcServerUpdated.flatMap(_.close(serverSPK,serverPrivKey))
+
+    val closedConfs = closed.flatMap { tx =>
+      Thread.sleep(10000)
+      val genBlocks2 = client1.generate(10)
+      genBlocks2.flatMap(_ => client1.getConfirmations(tx.txId))
     }
-    whenReady(closedConfs.failed, timeout(30.seconds), interval(500.millis)) { confs =>
-      throw confs
-      //confs must be (10)
+    whenReady(closedConfs, timeout(30.seconds), interval(500.millis)) { confs =>
+      confs must be (Some(10))
     }
   }
 

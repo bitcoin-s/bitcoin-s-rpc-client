@@ -301,7 +301,10 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * */
   def fundRawTransaction(tx: Transaction, opts: Option[FundRawTransactionOptions]): Future[(Transaction, CurrencyUnit, Int)] = {
     val cmd = "fundrawtransaction"
-    sendCommand(cmd,tx.hex).map { json =>
+    val opts = """ { "includeWatching" : true }"""
+    val m = Map("includeWatching" -> JsTrue)
+    val arr = JsArray(JsString(tx.hex), JsObject(m))
+    sendCommand(cmd,arr).map { json =>
       val result = json.fields("result")
       val f = result.asJsObject.fields
       val newTx = Transaction(f("hex").convertTo[String])
@@ -407,21 +410,6 @@ sealed trait RPCClient extends RPCMarshallerUtil
       val result = json.fields("result")
       val walletTx = result.convertTo[WalletTransaction]
       walletTx
-    }
-  }
-
-  /** Gets the confirmations for a transaction on the network.
-    * Note the daemon instance must be started with -txindex for this to work for
-    * arbitrary transactions on the network
-    */
-  def getConfirmations(hash: DoubleSha256Digest): Future[Int] = {
-    val cmd = "getrawtransaction"
-    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
-    val args = JsArray(JsString(flipped), JsBoolean(true))
-    sendCommand(cmd,args).map { json =>
-      val result = json.fields("result")
-      val confs = result.asJsObject.fields("confirmations")
-      confs.convertTo[Int]
     }
   }
 
