@@ -3,7 +3,7 @@ package org.bitcoins.rpc
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.channels.{AnchorTransaction, PaymentChannelAwaitingAnchorTx, PaymentChannelInProgress}
-import org.bitcoins.core.crypto.{ECDigitalSignature, ECPrivateKey}
+import org.bitcoins.core.crypto.{DoubleSha256Digest, ECDigitalSignature, ECPrivateKey}
 import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
 import org.bitcoins.core.number.Int64
@@ -37,14 +37,14 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
 
   override def beforeAll: Unit = {
     TestUtil.startNodes(Seq(client1,client2))
-    val connected = client1.addNode(client2.instance.uri).flatMap { _ =>
-      val u = client2.addNode(client1.instance.uri)
-      val generateBlocks = u.flatMap(_ => client1.generate(300))
-      Thread.sleep(5000)
-      generateBlocks
+    //need to generate 475 blocks for segwit to activate on regtest
+    val connected = TestUtil.connectTwoNodes(client1,client2)
+    val generateBlocks: Future[Seq[DoubleSha256Digest]] = connected.flatMap { _ =>
+      val gen = client1.generate(300)
+      gen
     }
 
-    val generateBlocksClient2 = connected.flatMap(_ => client2.generate(175))
+    val generateBlocksClient2: Future[Seq[DoubleSha256Digest]] = generateBlocks.flatMap(_ => client2.generate(175))
     Await.result(generateBlocksClient2,10.seconds)
   }
 
@@ -58,14 +58,12 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,serverPubKey,
       lockTimeScriptPubKey,CurrencyUnits.oneBTC)
     val generatedBlocks = pcClient.flatMap { _ =>
-      Thread.sleep(5000)
       client1.generate(10)
     }
 
     val pcServer: Future[PaymentChannelServer] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap { cli =>
         //wait for client1 to propogate tx to client2
-        Thread.sleep(5000)
         PaymentChannelServer(client2, cli.channel.anchorTx.tx.txId, cli.channel.lock)
       }
     }
@@ -83,7 +81,8 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     val closed: Future[Transaction] = pcServerUpdated.flatMap(_.close(serverSPK,serverPrivKey))
 
     val closedConfs = closed.flatMap { tx =>
-      Thread.sleep(10000)
+      //wait for close tx to propogate to client1
+      Thread.sleep(5000)
       val genBlocks2 = client1.generate(10)
       genBlocks2.flatMap(_ => client1.getConfirmations(tx.txId))
     }
