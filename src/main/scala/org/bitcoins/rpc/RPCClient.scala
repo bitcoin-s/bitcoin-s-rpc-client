@@ -92,7 +92,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
   def start: Unit = {
     val networkArg = parseNetworkArg
     val datadir = instance.authCredentials.datadir
-    val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon -reindex -txindex"
+    val cmd = "bitcoind " + networkArg + " -datadir=" + datadir + " -daemon"
     cmd.!!
   }
 
