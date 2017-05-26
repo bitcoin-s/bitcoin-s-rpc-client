@@ -16,7 +16,8 @@ apt_packages:
 
 before_script:
   - mkdir -p /home/travis/.bitcoin && cp bitcoin.conf /home/travis/.bitcoin/bitcoin.conf
-  - bitcoind -regtest -daemon
+  - dpkg -L bitcoind 
+  - /usr/bin/bitcoind -regtest -daemon
 
 script: "sbt clean coverage test"
 after_success: "sbt coverageReport coveralls"
