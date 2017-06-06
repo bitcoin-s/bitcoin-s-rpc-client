@@ -16,52 +16,51 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by chris on 5/10/17.
   */
-sealed trait PaymentChannelClient {
+sealed trait ChannelClient {
 
   def client: RPCClient
 
-  def channel: PaymentChannel
+  def channel: Channel
 
   def clientKey: ECPrivateKey
 
-  def update(amount: CurrencyUnit, clientKey: ECPrivateKey): Future[(PaymentChannelClient, Transaction)] = channel match {
-    case _: PaymentChannelAwaitingAnchorTx =>
+  def update(amount: CurrencyUnit, clientKey: ECPrivateKey): Future[(ChannelClient, Transaction)] = channel match {
+    case _: ChannelAwaitingAnchorTx =>
       Future.failed(new IllegalArgumentException("Cannot sign a payment channel awaiting the anchor transaction, need to provide clientSPK and serverSPK"))
-    case inProgress: PaymentChannelInProgress =>
+    case inProgress: ChannelInProgress =>
       //update payment channel with confs on anchor tx
       val clientSigned = inProgress.clientSign(amount,clientKey)
-      val newClient = clientSigned.map(c => (PaymentChannelClient(client,c,clientKey),c.current.transaction))
+      val newClient = clientSigned.map(c => (ChannelClient(client,c,clientKey),c.partiallySigned.transaction))
       Future.fromTry(newClient)
-    case _: PaymentChannelClosed =>
+    case _: ChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot update a payment channel that is already closed"))
   }
 
   /** Creates the first spending transaction in the payment channel, then signs it with the client's key */
-  def update(clientSPK: ScriptPubKey, amount: CurrencyUnit)(implicit ec: ExecutionContext): Future[(PaymentChannelClient,Transaction)] = {
-    require(channel.isInstanceOf[PaymentChannelAwaitingAnchorTx],
-      "Cannot create the first spending transaction for a payment channel if the type is NOT PaymentChannelAwaitingAnchorTx")
-    val ch = channel.asInstanceOf[PaymentChannelAwaitingAnchorTx]
+  def update(clientSPK: ScriptPubKey, amount: CurrencyUnit)(implicit ec: ExecutionContext): Future[(ChannelClient,Transaction)] = {
+    require(channel.isInstanceOf[ChannelAwaitingAnchorTx],
+      "Cannot create the first spending transaction for a payment channel if the type is NOT ChannelAwaitingAnchorTx")
+    val ch = channel.asInstanceOf[ChannelAwaitingAnchorTx]
     //get the amount of confs on the anchor tx
-    val updatedConfs = client.getConfirmations(ch.anchorTx.tx.txId)
+    val updatedConfs = client.getConfirmations(ch.anchorTx.txId)
     val newAwaiting = updatedConfs.flatMap(confs =>
-      Future.fromTry(PaymentChannelAwaitingAnchorTx(ch.anchorTx,ch.lock,confs.getOrElse(ch.confirmations))))
+      Future.fromTry(ChannelAwaitingAnchorTx(ch.anchorTx,ch.lock,confs.getOrElse(ch.confirmations))))
     val clientSigned = newAwaiting.flatMap(ch =>
       Future.fromTry(ch.clientSign(clientSPK,amount,clientKey)))
-    val newClient = clientSigned.map(c => (PaymentChannelClient(client,c,clientKey),c.current.transaction))
+    val newClient = clientSigned.map(c => (ChannelClient(client,c,clientKey),c.partiallySigned.transaction))
     newClient
   }
 }
 
-object PaymentChannelClient extends BitcoinSLogger {
-  private case class PaymentChannelClientImpl(client: RPCClient, channel: PaymentChannel,
-                                              clientKey: ECPrivateKey) extends PaymentChannelClient
+object ChannelClient extends BitcoinSLogger {
+  private case class ChannelClientImpl(client: RPCClient, channel: Channel,
+                                              clientKey: ECPrivateKey) extends ChannelClient
 
-  /** Creates a [[org.bitcoins.core.channels.PaymentChannelAwaitingAnchorTx]],
-    * it also broadcasts the [[org.bitcoins.core.channels.AnchorTransaction]]
-    * to the network
+  /** Creates a [[org.bitcoins.core.channels.ChannelAwaitingAnchorTx]],
+    * it also broadcasts the anchor tx to the network
     */
   def apply(client: RPCClient, serverPublicKey: ECPublicKey, timeout: LockTimeScriptPubKey,
-            depositAmount: CurrencyUnit)(implicit ec: ExecutionContext): Future[PaymentChannelClient] = {
+            depositAmount: CurrencyUnit)(implicit ec: ExecutionContext): Future[ChannelClient] = {
     val clientPrivKey = ECPrivateKey()
     val importPrivKey = client.importPrivateKey(clientPrivKey)
     val clientPubKey = clientPrivKey.publicKey
@@ -84,15 +83,13 @@ object PaymentChannelClient extends BitcoinSLogger {
     val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => client.signRawTransaction(f._1))
     val sent = signed.flatMap(s => client.sendRawTransaction(s._1))
     val anchorTx = sent.flatMap { _ =>
-      signed.map { s =>
-        AnchorTransaction(s._1)
-      }
+      signed.map(_._1)
     }
-    val paymentChannel = anchorTx.flatMap(aTx => Future.fromTry(PaymentChannelAwaitingAnchorTx(aTx,lock)))
-    paymentChannel.map(chan => PaymentChannelClient(client,chan,clientPrivKey))
+    val Channel = anchorTx.flatMap(aTx => Future.fromTry(ChannelAwaitingAnchorTx(aTx,lock)))
+    Channel.map(chan => ChannelClient(client,chan,clientPrivKey))
   }
 
-  def apply(client: RPCClient, channel: PaymentChannel, clientKey: ECPrivateKey): PaymentChannelClient = {
-    PaymentChannelClientImpl(client,channel, clientKey)
+  def apply(client: RPCClient, channel: Channel, clientKey: ECPrivateKey): ChannelClient = {
+    ChannelClientImpl(client,channel, clientKey)
   }
 }

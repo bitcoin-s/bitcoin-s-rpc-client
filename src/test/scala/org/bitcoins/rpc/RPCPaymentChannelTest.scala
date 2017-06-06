@@ -2,7 +2,7 @@ package org.bitcoins.rpc
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.channels.{AnchorTransaction, PaymentChannelAwaitingAnchorTx, PaymentChannelInProgress}
+import org.bitcoins.core.channels.{ChannelAwaitingAnchorTx, ChannelInProgress}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECDigitalSignature, ECPrivateKey}
 import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
@@ -12,7 +12,7 @@ import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, MultiSignat
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput, WitnessTransaction}
 import org.bitcoins.core.script.crypto.HashType
 import org.bitcoins.core.util.BitcoinSLogger
-import org.bitcoins.rpc.channels.{PaymentChannelClient, PaymentChannelServer}
+import org.bitcoins.rpc.channels.{ChannelClient, ChannelServer}
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -23,7 +23,7 @@ import scala.util.Try
 /**
   * Created by chris on 5/3/17.
   */
-class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
+class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
   with BeforeAndAfterAll with BitcoinSLogger {
 
   implicit val actorSystem = ActorSystem("RPCClientTest")
@@ -48,33 +48,33 @@ class RPCPaymentChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     Await.result(generateBlocksClient2,10.seconds)
   }
 
-  "RPCPaymentChannels" must "create a payment channel from the client's perspective" in {
+  "RPCChannels" must "create a payment channel from the client's perspective" in {
     val serverPrivKey = ECPrivateKey()
     val serverPubKey = serverPrivKey.publicKey
     val (lockTimeScriptPubKey,_) = ScriptGenerators.lockTimeScriptPubKey.sample.get
     val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
     val serverSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
 
-    val pcClient: Future[PaymentChannelClient] = PaymentChannelClient(client1,serverPubKey,
+    val pcClient: Future[ChannelClient] = ChannelClient(client1,serverPubKey,
       lockTimeScriptPubKey,CurrencyUnits.oneBTC)
     val generatedBlocks = pcClient.flatMap { _ =>
       client1.generate(10)
     }
 
-    val pcServer: Future[PaymentChannelServer] = generatedBlocks.flatMap { _ =>
+    val pcServer: Future[ChannelServer] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap { cli =>
         //wait for client1 to propogate tx to client2
-        PaymentChannelServer(client2, cli.channel.anchorTx.tx.txId, cli.channel.lock)
+        ChannelServer(client2, cli.channel.anchorTx.txId, cli.channel.lock)
       }
     }
-    val amount = Policy.minPaymentChannelAmount
-    val clientSigned: Future[(PaymentChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
+    val amount = Policy.minChannelAmount
+    val clientSigned: Future[(ChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap(pc => pc.update(clientSPK, amount))
     }
 
-    val pcServerUpdated: Future[PaymentChannelServer] = clientSigned.flatMap { cli =>
+    val pcServerUpdated: Future[ChannelServer] = clientSigned.flatMap { cli =>
       pcServer.flatMap { server =>
-        server.update(cli._2,serverPrivKey)
+        server.update(cli._2,clientSPK,serverPrivKey)
       }
     }
 
