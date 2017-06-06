@@ -134,7 +134,6 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
 
 
   it must "be able to import a p2sh address successfully using importmulti" in {
-    //make sure script size is less than 520 bytes, this is a consensus rule in bitcoin core
     val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
     val pubKeys = privKeys.map(_.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)

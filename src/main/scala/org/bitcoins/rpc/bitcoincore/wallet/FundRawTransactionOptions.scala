@@ -30,6 +30,8 @@ sealed trait FundRawTransactionOptions {
     * If not set, the wallet determines the fee */
   def feeRate: Option[Bitcoins]
 
+  /** A json array of integers. The fee will be equally deducted from the amount of each specified output.
+    * The outputs are specified by their zero-based index, before any change output is added. */
   def subtractFeeFromOutputs: Seq[Int]
 }
 

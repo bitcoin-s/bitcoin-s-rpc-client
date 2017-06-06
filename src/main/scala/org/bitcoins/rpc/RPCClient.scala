@@ -123,6 +123,10 @@ sealed trait RPCClient extends RPCMarshallerUtil
     }
   }
 
+  /** The getaddednodeinfo RPC returns information about the given added node, or all added nodes (except onetry nodes).
+    * Only nodes which have been manually added using the addnode RPC will have their information displayed.
+    * [[https://bitcoin.org/en/developer-reference#getaddednodeinfo]]
+    */
   def getAddedNodeInfo: Future[Seq[AddedNodeInfo]] = {
     val cmd = "getaddednodeinfo"
     sendCommand(cmd).map { json =>
@@ -314,6 +318,13 @@ sealed trait RPCClient extends RPCMarshallerUtil
     }
   }
 
+  /**
+    * The importmulti RPC imports addresses or scripts (with private keys,
+    * public keys, or P2SH redeem scripts) and optionally performs the minimum necessary rescan for all imports.
+    * [[https://bitcoin.org/en/developer-reference#importmulti]]
+    * @param request
+    * @return
+    */
   def importMulti(request: ImportMultiRequest): Future[ImportMultiResponse] = {
     import spray.json._
     import org.bitcoins.rpc.marshallers.wallet.ImportMultiRequestMarshaller._
@@ -400,6 +411,8 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * arbitrary transactions on the network
     */
   def getConfirmations(hash: DoubleSha256Digest): Future[Option[Long]] = {
+    //TODO: Refactor this to use 'getRawTransaction' eventually when we create a native
+    //object for get raw transaction
     val cmd = "getrawtransaction"
     val flipped = BitcoinSUtil.flipEndianness(hash.hex)
     val args = JsArray(JsString(flipped), JsBoolean(true))

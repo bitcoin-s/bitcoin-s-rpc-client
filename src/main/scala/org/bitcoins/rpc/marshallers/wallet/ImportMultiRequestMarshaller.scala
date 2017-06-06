@@ -1,6 +1,6 @@
 package org.bitcoins.rpc.marshallers.wallet
 
-import org.bitcoins.core.config.{MainNet, RegTest}
+import org.bitcoins.core.config.{MainNet, NetworkParameters, RegTest}
 import org.bitcoins.core.crypto.{ECPrivateKey, ECPublicKey}
 import org.bitcoins.core.protocol.{BitcoinAddress, CompactSizeUInt}
 import org.bitcoins.core.protocol.script.ScriptPubKey
@@ -38,14 +38,21 @@ object ImportMultiRequestMarshaller extends DefaultJsonProtocol {
         ScriptPubKey(cmpct.hex + asmHex)
       }
       val pubKeys = f(pubkeysKey).convertTo[Vector[String]].map(ECPublicKey(_))
-      val keys = f(keysKey).convertTo[Vector[String]].map(ECPrivateKey.fromWIFToPrivateKey(_))
+      val keysWIF = f(keysKey).convertTo[Vector[String]]
+      val keys = keysWIF.map(ECPrivateKey.fromWIFToPrivateKey(_))
       val internal = f(internalKey).convertTo[Boolean]
       val watchOnly = f(watchOnlyKey).convertTo[Boolean]
       val label = f(labelKey).convertTo[String]
-      //TODO: This is a bug, need to figure out how to actually derive the network from WIF keys
-      val network = MainNet
+
+      //if we don't have any private keys in the ImportMultiRequest we just guess mainnet
+      val default = MainNet
+      val network: NetworkParameters = keysWIF.headOption match {
+        case Some(wif) =>
+          ECPrivateKey.parseNetworkFromWIF(wif).getOrElse(default)
+        case None => default
+      }
       //if internal is set, we cannot have a label
-      //if the impormult is not set it must be an address, NOT a spk
+      //if internal is not set it must be an address, NOT a spk
       if (internal) {
         ImportMultiRequest(result,timestamp,redeemScript,pubKeys,keys,internal,watchOnly, network)
       } else {
