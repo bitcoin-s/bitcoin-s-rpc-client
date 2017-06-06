@@ -1,24 +1,26 @@
 package org.bitcoins.rpc
 
-import akka.http.scaladsl.model.HttpEntity
+import akka.http.scaladsl.model.{HttpEntity, Uri}
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import org.bitcoins.core.config.{MainNet, RegTest}
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
-import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
+import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, Satoshis}
 import org.bitcoins.core.number.Int64
+import org.bitcoins.core.policy.Policy
+import org.bitcoins.core.protocol.script.ScriptPubKey
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.protocol.{BitcoinAddress, P2PKHAddress}
-import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.bitcoincore.blockchain.{BlockchainInfo, ConfirmedUnspentTransactionOutput, MemPoolInfo}
 import org.bitcoins.rpc.bitcoincore.mining.GetMiningInfo
-import org.bitcoins.rpc.bitcoincore.networking.{NetworkInfo, PeerInfo}
-import org.bitcoins.rpc.bitcoincore.wallet.{UTXO, WalletInfo}
-import org.bitcoins.rpc.config.BitcoindInstance
+import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NetworkInfo, PeerInfo}
+import org.bitcoins.rpc.bitcoincore.wallet._
+import org.bitcoins.rpc.config.DaemonInstance
 import org.bitcoins.rpc.marshallers.RPCMarshallerUtil
 import org.bitcoins.rpc.marshallers.blockchain.{BlockchainInfoRPCMarshaller, ConfirmedUnspentTransactionOutputMarshaller, MemPoolInfoMarshaller}
 import org.bitcoins.rpc.marshallers.mining.MiningInfoMarshaller
-import org.bitcoins.rpc.marshallers.networking.NetworkRPCMarshaller
+import org.bitcoins.rpc.marshallers.networking.{AddedNodeInfoMarshaller, NetworkRPCMarshaller}
 import org.bitcoins.rpc.marshallers.wallet.UTXOMarshaller._
 import org.bitcoins.rpc.marshallers.wallet.WalletMarshaller
 import spray.json._
@@ -26,14 +28,15 @@ import spray.json._
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 import scala.sys.process._
+import scala.util.Try
 
 /**
   * Created by Tom on 1/14/2016.
   */
 sealed trait RPCClient extends RPCMarshallerUtil
   with BitcoinSLogger with DefaultJsonProtocol {
-  def instance: BitcoindInstance
-  def materializer: ActorMaterializer
+  def instance: DaemonInstance
+  implicit val materializer: ActorMaterializer
   implicit val dispatcher = materializer.system.dispatcher
   /**
    * Refer to this reference for list of RPCs
@@ -53,8 +56,18 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendRequest(request)
   }
 
+  def sendCommand(command: String, arg: Boolean): Future[JsObject] = {
+    val request = RPCHandler.buildRequest(command,arg)
+    sendRequest(request)
+  }
+
   def sendCommand(command: String, arg: JsArray): Future[JsObject] = {
     val request = RPCHandler.buildRequest(command,arg)
+    sendRequest(request)
+  }
+
+  def sendCommand(command: String, arg1: String, args: JsObject): Future[JsObject] = {
+    val request = RPCHandler.buildRequest(command,arg1,args)
     sendRequest(request)
   }
 
@@ -90,6 +103,38 @@ sealed trait RPCClient extends RPCMarshallerUtil
     response.map(_ => ())
   }
 
+  /**
+    * The addnode RPC attempts to add or remove a node from the addnode list, or to try a connection to a node once.
+    * [[https://bitcoin.org/en/developer-reference#addnode]]
+    */
+  def addNode(uri: Uri): Future[Unit] = {
+    val cmd = "addnode"
+    val arr = JsArray(JsString(uri.authority.toString), JsString("add"))
+    sendCommand(cmd,arr).map { json =>
+      ()
+    }
+  }
+
+  /** Disconnects following node from your node. */
+  def disconnectNode(uri: Uri): Future[Unit] = {
+    val cmd = "disconnectnode"
+    sendCommand(cmd,uri.authority.toString).map { json =>
+      ()
+    }
+  }
+
+  /** The getaddednodeinfo RPC returns information about the given added node, or all added nodes (except onetry nodes).
+    * Only nodes which have been manually added using the addnode RPC will have their information displayed.
+    * [[https://bitcoin.org/en/developer-reference#getaddednodeinfo]]
+    */
+  def getAddedNodeInfo: Future[Seq[AddedNodeInfo]] = {
+    val cmd = "getaddednodeinfo"
+    sendCommand(cmd).map { json =>
+      val f = json.fields
+      val arr = f("result").asInstanceOf[JsArray]
+      arr.elements.map(e => AddedNodeInfoMarshaller.AddedNodeInfoFormatter.read(e))
+    }
+  }
   /**
    * The number of blocks in the local best block chain. For a new node with only the hardcoded genesis block,
    * this number will be 0
@@ -219,10 +264,32 @@ sealed trait RPCClient extends RPCMarshallerUtil
     sendCommand("getbestblockhash").map(json => DoubleSha256Digest(json.fields("result").convertTo[String]))
   }
 
+  //Wallet stuff
+  /**
+    * The estimatefee RPC estimates the transaction fee per kilobyte that needs to be paid for a transaction to be
+    * included within a certain number of blocks.
+    * [[https://bitcoin.org/en/developer-reference#estimatefee]]
+    * @param numBlocks - this needs to be between the number 2 and 25
+    * @return The estimated fee the transaction should pay in order to be included within the specified number of blocks.
+    *         If the node doesn’t have enough information to make an estimate, the value -1 will be returned
+    */
+  def estimateFee(numBlocks: Int): Future[CurrencyUnit] = {
+    val cmd = "estimatefee"
+    sendCommand(cmd,numBlocks).map { json =>
+      val result = json.fields("result").convertTo[Double]
+      if (result == -1) {
+        //defaultFee is satoshis/byte, so multiply by 1000 to get satoshis/kb
+        Policy.defaultFee * Satoshis(Int64(1000))
+      } else {
+        Bitcoins(result)
+      }
+    }
+  }
+
   /** Funds the given transaction with outputs in the bitcoin core wallet
     * [[https://bitcoin.org/en/developer-reference#fundrawtransaction]]
     * */
-  def fundRawTransaction(tx: Transaction): Future[(Transaction, CurrencyUnit, Int)] = {
+  def fundRawTransaction(tx: Transaction, opts: Option[FundRawTransactionOptions]): Future[(Transaction, CurrencyUnit, Int)] = {
     val cmd = "fundrawtransaction"
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")
@@ -231,6 +298,46 @@ sealed trait RPCClient extends RPCMarshallerUtil
       val fee = Bitcoins(f("fee").convertTo[Double])
       val changePosition = f("changepos").convertTo[Int]
       (newTx,fee,changePosition)
+    }
+  }
+
+  /**
+    * The importaddress RPC adds an address or pubkey script to the wallet without the associated private key,
+    * allowing you to watch for transactions affecting that address or pubkey script without being able to spend
+    * any of its outputs.
+    * [[https://bitcoin.org/en/developer-reference#importaddress]]
+    */
+  def importAddress(scriptOrAddress: Either[ScriptPubKey, BitcoinAddress]): Future[Unit] = {
+    val cmd = "importaddress"
+    val hex = scriptOrAddress match {
+      case Left(script) => BitcoinSUtil.encodeHex(script.asmBytes)
+      case Right(addr) => addr.value
+    }
+    sendCommand(cmd,hex).map { json =>
+      ()
+    }
+  }
+
+  /**
+    * The importmulti RPC imports addresses or scripts (with private keys,
+    * public keys, or P2SH redeem scripts) and optionally performs the minimum necessary rescan for all imports.
+    * [[https://bitcoin.org/en/developer-reference#importmulti]]
+    * @param request
+    * @return
+    */
+  def importMulti(request: ImportMultiRequest): Future[ImportMultiResponse] = {
+    import spray.json._
+    import org.bitcoins.rpc.marshallers.wallet.ImportMultiRequestMarshaller._
+    import org.bitcoins.rpc.marshallers.wallet.ImportMultiResponseMarshaller._
+    val json = request.toJson
+    val array = JsArray(JsArray(json))
+    val cmd = "importmulti"
+    sendCommand(cmd,array).map { json =>
+      val result = json.fields("result")
+      val responses = result.asInstanceOf[JsArray].elements.map { j =>
+        ImportMultiResponseFormatter.read(j)
+      }
+      responses.head
     }
   }
 
@@ -277,11 +384,42 @@ sealed trait RPCClient extends RPCMarshallerUtil
     }
   }
 
+  /**
+    * The gettransaction RPC gets detailed information about an in-wallet transaction.
+    * [[https://bitcoin.org/en/developer-reference#gettransaction]]
+    */
+  def getTransaction(hash: DoubleSha256Digest): Future[WalletTransaction] = {
+    import org.bitcoins.rpc.marshallers.wallet.WalletTransactionMarshaller._
+    val cmd = "gettransaction"
+    sendCommand(cmd,hash.hex).map { json =>
+      val result = json.fields("result")
+      val walletTx = result.convertTo[WalletTransaction]
+      walletTx
+    }
+  }
+
   def listUnspent: Future[Seq[UTXO]] = {
     val cmd = "listunspent"
     sendCommand(cmd).map { json =>
       val utxos: Seq[UTXO] = json.fields("result").convertTo[Seq[UTXO]]
       utxos
+    }
+  }
+
+  /** Gets the confirmations for a transaction on the network.
+    * Note the daemon instance must be started with -txindex for this to work for
+    * arbitrary transactions on the network
+    */
+  def getConfirmations(hash: DoubleSha256Digest): Future[Option[Long]] = {
+    //TODO: Refactor this to use 'getRawTransaction' eventually when we create a native
+    //object for get raw transaction
+    val cmd = "getrawtransaction"
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    val args = JsArray(JsString(flipped), JsBoolean(true))
+    sendCommand(cmd,args).map { json =>
+      val result = json.fields("result")
+      val confs = Try(result.asJsObject.fields("confirmations").convertTo[Long])
+      Some(confs.getOrElse(0L))
     }
   }
 
@@ -311,9 +449,9 @@ sealed trait RPCClient extends RPCMarshallerUtil
 }
 
 object RPCClient {
-  private case class RPCClientImpl(instance: BitcoindInstance, materializer: ActorMaterializer) extends RPCClient
+  private case class RPCClientImpl(instance: DaemonInstance, materializer: ActorMaterializer) extends RPCClient
 
-  def apply(instance: BitcoindInstance, materializer: ActorMaterializer): RPCClient = {
+  def apply(instance: DaemonInstance, materializer: ActorMaterializer): RPCClient = {
     RPCClientImpl(instance, materializer)
   }
 

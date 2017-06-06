@@ -1,45 +1,31 @@
 package org.bitcoins.rpc
 
 import akka.actor.ActorSystem
-import akka.http.javadsl.model.headers.{HttpCredentials, RawRequestURI}
+import akka.http.javadsl.model.headers.HttpCredentials
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.config.NetworkParameters
-import org.bitcoins.rpc.auth.AuthCredentials
-import org.bitcoins.rpc.config.BitcoindInstance
-import spray.json.{JsArray, JsNumber, JsObject, JsString, JsValue}
+import org.bitcoins.rpc.config.DaemonInstance
+import spray.json.{JsArray, JsBoolean, JsNumber, JsObject, JsString, JsValue}
 
 import scala.concurrent.Future
 
 /**
   * Created by chris on 4/25/17.
   */
-trait RPCHandler {
+sealed trait RPCHandler {
 
-
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
-
-  val rawRequest =
-    """
-      |  {
-      |      "method": "getblockhash",
-      |      "params": [0],
-      |      "id": "foo"
-      |  }
-    """.stripMargin
-  def sendRequest(instance: BitcoindInstance, jsObject: JsObject): Future[HttpResponse] = {
+  def sendRequest(instance: DaemonInstance, jsObject: JsObject)(implicit m: ActorMaterializer): Future[HttpResponse] = {
     val username = instance.authCredentials.username
     val password = instance.authCredentials.password
-    val req = HttpRequest(method = HttpMethods.POST, uri = instance.uri,
+    val req = HttpRequest(method = HttpMethods.POST, uri = instance.rpcUri,
       entity = HttpEntity(ContentTypes.`application/json`,jsObject.toString()))
       .addCredentials(HttpCredentials.createBasicHttpCredentials(username,password))
     sendRequest(req)
   }
 
-  def sendRequest(req: HttpRequest): Future[HttpResponse] = {
-    Http().singleRequest(req)
+  def sendRequest(req: HttpRequest)(implicit m: ActorMaterializer): Future[HttpResponse] = {
+    Http(m.system).singleRequest(req)
   }
 
   def buildRequest(methodName: String, param: Int): JsObject = {
@@ -48,6 +34,10 @@ trait RPCHandler {
 
   def buildRequest(methodName: String, param: String): JsObject = {
     buildRequest(methodName,JsArray(JsString(param)))
+  }
+
+  def buildRequest(methodName: String, param: Boolean): JsObject = {
+    buildRequest(methodName, JsArray(JsBoolean(param)))
   }
 
   def buildRequest(methodName: String, params: JsArray): JsObject = {
@@ -60,6 +50,11 @@ trait RPCHandler {
 
   def buildRequest(methodName: String): JsObject = {
     buildRequest(methodName,JsArray(Vector()))
+  }
+
+  def buildRequest(methodName: String, param1: String, opt: JsObject): JsObject = {
+    val arr = JsArray(JsString(param1),opt)
+    buildRequest(methodName,arr)
   }
 }
 

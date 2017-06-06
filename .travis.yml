@@ -1,7 +1,7 @@
-language: scala
 sudo: required
-scala: 
-  - 2.11.7
+dist: trusty
+
+language: scala
 
 notifications:
   on_success: change
@@ -14,10 +14,6 @@ before_install:
 
 apt_packages:
   - bitcoind
-
-before_script:
-  - mkdir -p /home/travis/.bitcoin && cp bitcoin.conf /home/travis/.bitcoin/bitcoin.conf
-  - bitcoind -regtest -daemon
 
 script: "sbt clean coverage test"
 after_success: "sbt coverageReport coveralls"
