@@ -96,10 +96,11 @@ sealed trait ChannelServer extends BitcoinSLogger {
     val feePerByte = feeEstimatePerKB.map(c => c.satoshis.underlying.underlying / 1000)
     val txSize = clientSigned.partiallySigned.transaction.bytes.size
     val fee: Future[CurrencyUnit] = feePerByte.map(f => Satoshis(Int64(txSize * f)))
-
+    fee.map(f => logger.info("Fee for closing tx: " + f))
     val closed: Future[ChannelClosed] = fee.flatMap { f =>
       Future.fromTry(clientSigned.close(serverSPK, serverKey, f))
     }
+
     val broadcast = closed.flatMap { c =>
       logger.info("Broadcasting tx for closed payment channel: " + c.finalTx.transaction.hex)
       val txid = client.sendRawTransaction(c.finalTx.transaction)

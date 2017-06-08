@@ -3,14 +3,17 @@ package org.bitcoins.rpc
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import org.bitcoins.core.channels.{ChannelAwaitingAnchorTx, ChannelInProgress}
-import org.bitcoins.core.crypto.{DoubleSha256Digest, ECDigitalSignature, ECPrivateKey}
+import org.bitcoins.core.crypto.{DoubleSha256Digest, ECDigitalSignature, ECPrivateKey, TxSigComponent}
 import org.bitcoins.core.currency.{CurrencyUnit, CurrencyUnits, Satoshis}
-import org.bitcoins.core.gen.ScriptGenerators
-import org.bitcoins.core.number.Int64
+import org.bitcoins.core.gen.{ScriptGenerators, TransactionGenerators}
+import org.bitcoins.core.number.{Int64, UInt32}
 import org.bitcoins.core.policy.Policy
-import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, MultiSignatureScriptPubKey, WitnessScriptPubKeyV0}
-import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput, WitnessTransaction}
+import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, MultiSignatureScriptPubKey, P2SHScriptPubKey, WitnessScriptPubKeyV0}
+import org.bitcoins.core.protocol.transaction._
+import org.bitcoins.core.script.ScriptProgram
 import org.bitcoins.core.script.crypto.HashType
+import org.bitcoins.core.script.interpreter.ScriptInterpreter
+import org.bitcoins.core.script.result.{ScriptOk, ScriptResult}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.channels.{ChannelClient, ChannelServer}
 import org.bitcoins.rpc.util.TestUtil
@@ -58,6 +61,7 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     val pcClient: Future[ChannelClient] = ChannelClient(client1,serverPubKey,
       lockTimeScriptPubKey,CurrencyUnits.oneBTC)
     val generatedBlocks = pcClient.flatMap { _ =>
+      Thread.sleep(5000)
       client1.generate(10)
     }
 
@@ -80,14 +84,14 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
 
     val closed: Future[Transaction] = pcServerUpdated.flatMap(_.close(serverSPK,serverPrivKey))
 
-    val closedConfs = closed.flatMap { tx =>
+    val closedConfs: Future[Option[Long]] = closed.flatMap { tx =>
       //wait for close tx to propogate to client1
-      Thread.sleep(5000)
+      Thread.sleep(7500)
       val genBlocks2 = client1.generate(10)
       genBlocks2.flatMap(_ => client1.getConfirmations(tx.txId))
     }
-    whenReady(closedConfs, timeout(30.seconds), interval(500.millis)) { confs =>
-      confs must be (Some(10))
+    whenReady(closedConfs, timeout(30.seconds), interval(500.millis)) { c =>
+      c must be (Some(10))
     }
   }
 

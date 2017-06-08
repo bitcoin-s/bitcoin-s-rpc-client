@@ -33,7 +33,6 @@ trait TestUtil {
     pw.write("rpcbind=" + rpcUri.toString + "\n")
     pw.write("rpcport=" + rpcUri.effectivePort + "\n")
     pw.write("port=" + uri.effectivePort + "\n")
-    pw.write("listen=1\n")
     pw.close()
     AuthCredentials(username,pass,d)
   }

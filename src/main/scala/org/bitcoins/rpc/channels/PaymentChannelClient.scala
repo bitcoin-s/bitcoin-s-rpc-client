@@ -16,7 +16,7 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by chris on 5/10/17.
   */
-sealed trait ChannelClient {
+sealed trait ChannelClient extends BitcoinSLogger {
 
   def client: RPCClient
 
@@ -83,10 +83,15 @@ object ChannelClient extends BitcoinSLogger {
     val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => client.signRawTransaction(f._1))
     val sent = signed.flatMap(s => client.sendRawTransaction(s._1))
     val anchorTx = sent.flatMap { _ =>
-      signed.map(_._1)
+      val tx = signed.map(_._1)
+      tx.map { t =>
+        logger.info("Anchor txid: " + t.txId)
+        logger.info("Anchor transaction: " + t.hex)
+      }
+      tx
     }
-    val Channel = anchorTx.flatMap(aTx => Future.fromTry(ChannelAwaitingAnchorTx(aTx,lock)))
-    Channel.map(chan => ChannelClient(client,chan,clientPrivKey))
+    val channel = anchorTx.flatMap(aTx => Future.fromTry(ChannelAwaitingAnchorTx(aTx,lock)))
+    channel.map(chan => ChannelClient(client,chan,clientPrivKey))
   }
 
   def apply(client: RPCClient, channel: Channel, clientKey: ECPrivateKey): ChannelClient = {
