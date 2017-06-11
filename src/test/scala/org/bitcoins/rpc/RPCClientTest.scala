@@ -178,10 +178,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "get the number of confirmations on a transaction" in {
     val signed = generatedTx
     val sent = signed.flatMap(s => test.sendRawTransaction(s))
-    val getConfsZero = sent.flatMap{ txid =>
-      val flippedEndianess = DoubleSha256Digest(BitcoinSUtil.flipEndianness(txid.hex))
-      test.getConfirmations(flippedEndianess)
-    }
+    val getConfsZero = sent.flatMap(test.getConfirmations(_))
     val generated = sent.flatMap(_ => test.generate(10))
     val getConfs10 = generated.flatMap { _ =>
       signed.flatMap { tx =>
@@ -242,7 +239,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     signed.map(_._1)
   }
   override def afterAll = {
-    Await.result(TestUtil.stopNodes(Seq(test,test1)), 5.seconds)
+    Await.result(TestUtil.stopNodes(Seq(test,test1)), 10.seconds)
     materializer.shutdown()
   }
 }

@@ -377,7 +377,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
     val cmd = "sendrawtransaction"
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")
-      val txid = DoubleSha256Digest(result.convertTo[String])
+      val txid = DoubleSha256Digest(BitcoinSUtil.flipEndianness(result.convertTo[String]))
       txid
     }
   }
@@ -430,7 +430,6 @@ sealed trait RPCClient extends RPCMarshallerUtil
     //object for get raw transaction
     val cmd = "getrawtransaction"
     val flipped = BitcoinSUtil.flipEndianness(hash.hex)
-    logger.info("getting confirmations for hash: " + flipped)
     val args = JsArray(JsString(flipped), JsBoolean(true))
     sendCommand(cmd,args).map { json =>
       val result = json.fields("result")

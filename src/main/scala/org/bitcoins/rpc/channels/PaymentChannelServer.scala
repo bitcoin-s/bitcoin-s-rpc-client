@@ -11,9 +11,10 @@ import org.bitcoins.core.protocol.transaction.{Transaction, WitnessTransaction}
 import org.bitcoins.core.script.ScriptProgram
 import org.bitcoins.core.script.crypto.HashType
 import org.bitcoins.core.script.interpreter.ScriptInterpreter
-import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.RPCClient
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest}
+
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -27,6 +28,8 @@ sealed trait ChannelServer extends BitcoinSLogger {
   /** The [[org.bitcoins.core.channels.Channel]] shared between
     * the [[ChannelClient]] and [[ChannelServer]] */
   def channel: Channel
+  /** The [[ECPrivateKey]] the server uses to sign the [[Channel]] with */
+  def serverKey: ECPrivateKey
 
   /** The last instance of a payment channel that the client has signed
     * This is useful for closing the [[Channel]]
@@ -50,8 +53,8 @@ sealed trait ChannelServer extends BitcoinSLogger {
         case None => Future.failed(new IllegalArgumentException("ClientSPK not founded on the partiallySignedTx"))
       }
       val newServer = fullySigned.flatMap { f =>
-        clientSigned.map { c =>
-          ChannelServer(client,f,c)
+        clientSigned.flatMap { c =>
+          ChannelServer(client,serverKey,f,c)
         }
       }
       newServer
@@ -62,8 +65,8 @@ sealed trait ChannelServer extends BitcoinSLogger {
       val clientSigned = ChannelInProgressClientSigned(inProgress.anchorTx,inProgress.lock,
         inProgress.clientSPK, updated, current +: inProgress.old)
       val fullySigned = Future.fromTry(clientSigned.serverSign(privKey))
-      val newServer = fullySigned.map { f =>
-        ChannelServer(client,f,Some(clientSigned))
+      val newServer = fullySigned.flatMap { f =>
+        ChannelServer(client,serverKey,f,Some(clientSigned))
       }
       newServer
     case _: ChannelClosed =>
@@ -71,7 +74,7 @@ sealed trait ChannelServer extends BitcoinSLogger {
   }
 
   /** Closes the payment channel, returns the final transaction */
-  def close(serverSPK: ScriptPubKey, serverKey: ECPrivateKey)(implicit ex: ExecutionContext): Future[Transaction] = channel match {
+  def close(serverSPK: ScriptPubKey)(implicit ex: ExecutionContext): Future[Transaction] = channel match {
     case _: ChannelAwaitingAnchorTx =>
       Future.failed(new IllegalArgumentException("Cannot close a payment channel that is awaiting anchor tx"))
     case clientSigned: ChannelInProgressClientSigned =>
@@ -114,10 +117,10 @@ sealed trait ChannelServer extends BitcoinSLogger {
 }
 
 object ChannelServer extends BitcoinSLogger {
-  private case class ChannelServerImpl(client: RPCClient, channel: Channel,
+  private case class ChannelServerImpl(client: RPCClient, channel: Channel, serverKey: ECPrivateKey,
                                               lastClientSigned: Option[ChannelInProgressClientSigned]) extends ChannelServer
 
-  def apply(client: RPCClient, txId: DoubleSha256Digest,
+  def apply(client: RPCClient, serverKey: ECPrivateKey, txId: DoubleSha256Digest,
             lock: EscrowTimeoutScriptPubKey)(implicit ec: ExecutionContext): Future[ChannelServer] = {
     val transaction = client.getRawTransaction(txId)
     val awaiting = transaction.flatMap(aTx => Future.fromTry(ChannelAwaitingAnchorTx(aTx,lock)))
@@ -129,12 +132,13 @@ object ChannelServer extends BitcoinSLogger {
       client.importMulti(request)
     }
     importMulti.flatMap { _ =>
-      awaiting.map(a => ChannelServer(client,a,None))
+      awaiting.flatMap(a => ChannelServer(client,serverKey,a,None))
     }
   }
 
-  def apply(client: RPCClient, channel: Channel,
-            lastClientSigned: Option[ChannelInProgressClientSigned]): ChannelServer = {
-    ChannelServerImpl(client,channel, lastClientSigned)
+  def apply(client: RPCClient, serverKey: ECPrivateKey, channel: Channel,
+            lastClientSigned: Option[ChannelInProgressClientSigned])(implicit ec: ExecutionContext): Future[ChannelServer] = {
+    val importPrivKey = client.importPrivateKey(serverKey)
+    importPrivKey.map(_ => ChannelServerImpl(client,channel, serverKey: ECPrivateKey, lastClientSigned))
   }
 }
