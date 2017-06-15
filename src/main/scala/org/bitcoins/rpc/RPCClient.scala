@@ -266,7 +266,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
 
   //Wallet stuff
   /**
-    * The estimatefee RPC estimates the transaction fee per kilobyte that needs to be paid for a transaction to be
+    * The estimatefee RPC estimates the transaction fee in satoshis/byte that needs to be paid for a transaction to be
     * included within a certain number of blocks.
     * [[https://bitcoin.org/en/developer-reference#estimatefee]]
     * @param numBlocks - this needs to be between the number 2 and 25
@@ -275,15 +275,25 @@ sealed trait RPCClient extends RPCMarshallerUtil
     */
   def estimateFee(numBlocks: Int): Future[CurrencyUnit] = {
     val cmd = "estimatefee"
-    sendCommand(cmd,numBlocks).map { json =>
+    sendCommand(cmd,numBlocks).flatMap { json =>
       val result = json.fields("result").convertTo[Double]
       if (result == -1) {
         //defaultFee is satoshis/byte, so multiply by 1000 to get satoshis/kb
-        Policy.defaultFee * Satoshis(Int64(1000))
+        Future.successful(Policy.defaultFee)
       } else {
-        Bitcoins(result)
+        Future.fromTry(convertToSatoshisPerByte(Bitcoins(result)))
       }
     }
+  }
+
+  /** Transforms bitcoin core's bitcoins/kb -> satoshis/byte */
+  private def convertToSatoshisPerByte(btc: Bitcoins): Try[CurrencyUnit] = Try {
+    val satPerKB = btc.satoshis
+    //convert kb -> byte
+    val perByte = satPerKB.underlying.underlying * 0.001
+    val satoshisPerByte = Satoshis(Int64(perByte.toInt))
+    require(satoshisPerByte > Satoshis.zero)
+    satoshisPerByte
   }
 
   /** Funds the given transaction with outputs in the bitcoin core wallet

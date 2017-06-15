@@ -79,7 +79,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
 
   it must "estimate a fee for inclusion in a block" in {
     whenReady(test.estimateFee(10), timeout(5.seconds), interval(500.millis)) { fee =>
-      fee must be (Satoshis(Int64(50000)))
+      fee must be (Satoshis(Int64(50)))
     }
   }
 
