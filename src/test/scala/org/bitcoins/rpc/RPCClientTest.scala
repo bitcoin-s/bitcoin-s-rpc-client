@@ -123,8 +123,8 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   }
 
   it must "be able to import a p2sh script successfully using importmulti" in {
-    val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
-    val pubKeys = privKeys.map(_.publicKey)
+    val (redeemScript,privKey) = ScriptGenerators.p2pkhScriptPubKey.sample.get
+    val pubKeys = Seq(privKey.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)
     val request = ImportMultiRequest(Left(scriptPubKey),Some(0L),Some(redeemScript),pubKeys,Nil,
       true,true,instance.network)
@@ -135,12 +135,12 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   }
 
   it must "be able to import a p2sh address successfully using importmulti" in {
-    val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
-    val pubKeys = privKeys.map(_.publicKey)
+    val (redeemScript,privKey) = ScriptGenerators.p2pkhScriptPubKey.sample.get
+    val pubKeys = Seq(privKey.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)
     val addr = P2SHAddress(scriptPubKey,TestUtil.network)
     val request = ImportMultiRequest(Right(addr),None,Some(redeemScript),pubKeys,
-      privKeys,true,false, instance.network)
+      Seq(privKey),true,false, instance.network)
     val response = test.importMulti(request)
     whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
       r.success must be (true)

@@ -7,9 +7,11 @@ import akka.stream.ActorMaterializer
 import org.bitcoins.core.config.RegTest
 import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
 import org.bitcoins.core.currency.CurrencyUnits
-import org.bitcoins.core.gen.ScriptGenerators
+import org.bitcoins.core.gen.{ScriptGenerators, TransactionGenerators}
 import org.bitcoins.core.policy.Policy
+import org.bitcoins.core.protocol.script.{CSVScriptPubKey, LockTimeScriptPubKey}
 import org.bitcoins.core.protocol.transaction.Transaction
+import org.bitcoins.core.script.constant.ScriptNumber
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
 import org.bitcoins.rpc.auth.AuthCredentials
@@ -76,7 +78,10 @@ trait TestUtil extends BitcoinSLogger {
     } else firstAttempt
   }
 
-  def paymentChannel(implicit materializer: ActorMaterializer): Future[(ChannelClient, ChannelServer)] = {
+  /** Gives us a [[Channel]] with two connected nodes where the client has initialized the
+    * payment channel with [[Policy.minChannelAmount]]
+    */
+  def initializedChannel(implicit materializer: ActorMaterializer): Future[(ChannelClient, ChannelServer)] = {
     implicit val dispatcher = materializer.system.dispatcher
     val node1 = TestUtil.instance(randomPort, randomPort)
     val client1 = RPCClient(node1,materializer)
@@ -94,11 +99,15 @@ trait TestUtil extends BitcoinSLogger {
 
     val serverPrivKey = ECPrivateKey()
     val serverPubKey = serverPrivKey.publicKey
-    val (lockTimeScriptPubKey,_) = ScriptGenerators.lockTimeScriptPubKey.sample.get
+    val p2pkh = client1.getNewAddress
+    val unspendable = ScriptNumber(100)
+    val lockTimeScriptPubKey = p2pkh.map(p => CSVScriptPubKey(unspendable,p.scriptPubKey))
     val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
 
-    val pcClient: Future[ChannelClient] = generateBlocksClient2.flatMap { _ =>
-      ChannelClient(client1, serverPubKey, lockTimeScriptPubKey, CurrencyUnits.oneBTC)
+    val pcClient: Future[ChannelClient] = lockTimeScriptPubKey.flatMap { lockTimeSPK =>
+      generateBlocksClient2.flatMap { _ =>
+        ChannelClient(client1, serverPubKey, lockTimeSPK, CurrencyUnits.oneBTC)
+      }
     }
     val generatedBlocks = pcClient.flatMap { _ =>
       client1.generate(10)
@@ -107,7 +116,7 @@ trait TestUtil extends BitcoinSLogger {
     val pcServer: Future[ChannelServer] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap { cli =>
         Thread.sleep(5000)
-        ChannelServer(client2, serverPrivKey,cli.channel.anchorTx.txId, cli.channel.lock)
+        ChannelServer(client2, serverPrivKey, cli.channel.anchorTx.txId, cli.channel.lock)
       }
     }
     val amount = Policy.minChannelAmount

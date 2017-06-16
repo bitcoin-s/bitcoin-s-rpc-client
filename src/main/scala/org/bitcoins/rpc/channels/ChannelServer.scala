@@ -93,12 +93,9 @@ sealed trait ChannelServer extends BitcoinSLogger {
   /** Helper function to close a payment channel */
   private def close(clientSigned: ChannelInProgressClientSigned, serverSPK: ScriptPubKey,
                     serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[Transaction] = {
-    val feeEstimatePerKB = client.estimateFee(Policy.confirmations.toInt)
-    //convert fee estimate to satoshis
-    //TODO: Review this, the .underlying.underlying is ugly
-    val feePerByte = feeEstimatePerKB.map(c => c.satoshis.underlying.underlying / 1000)
-    val txSize = clientSigned.partiallySigned.transaction.bytes.size
-    val fee: Future[CurrencyUnit] = feePerByte.map(f => Satoshis(Int64(txSize * f)))
+    val feeEstimate = client.estimateFee(Policy.confirmations.toInt)
+    val txSize = clientSigned.current.transaction.bytes.size
+    val fee: Future[CurrencyUnit] = feeEstimate.map(f => f * Satoshis(Int64(txSize)))
     fee.map(f => logger.info("Fee for closing tx: " + f))
     val closed: Future[ChannelClosed] = fee.flatMap { f =>
       Future.fromTry(clientSigned.close(serverSPK, serverKey, f))
