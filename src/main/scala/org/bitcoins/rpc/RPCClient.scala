@@ -301,7 +301,10 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * */
   def fundRawTransaction(tx: Transaction, opts: Option[FundRawTransactionOptions]): Future[(Transaction, CurrencyUnit, Int)] = {
     val cmd = "fundrawtransaction"
-    sendCommand(cmd,tx.hex).map { json =>
+    val opts = """ { "includeWatching" : true }"""
+    val m = Map("includeWatching" -> JsTrue)
+    val arr = JsArray(JsString(tx.hex), JsObject(m))
+    sendCommand(cmd,arr).map { json =>
       val result = json.fields("result")
       val f = result.asJsObject.fields
       val newTx = Transaction(f("hex").convertTo[String])
@@ -374,7 +377,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
     val cmd = "sendrawtransaction"
     sendCommand(cmd,tx.hex).map { json =>
       val result = json.fields("result")
-      val txid = DoubleSha256Digest(result.convertTo[String])
+      val txid = DoubleSha256Digest(BitcoinSUtil.flipEndianness(result.convertTo[String]))
       txid
     }
   }
@@ -387,7 +390,8 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * */
   def getRawTransaction(hash: DoubleSha256Digest): Future[Transaction] = {
     val cmd = "getrawtransaction"
-    sendCommand(cmd,hash.hex).map { json =>
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    sendCommand(cmd,flipped).map { json =>
       val result = json.fields("result")
       val tx = Transaction(result.convertTo[String])
       tx
@@ -401,7 +405,8 @@ sealed trait RPCClient extends RPCMarshallerUtil
   def getTransaction(hash: DoubleSha256Digest): Future[WalletTransaction] = {
     import org.bitcoins.rpc.marshallers.wallet.WalletTransactionMarshaller._
     val cmd = "gettransaction"
-    sendCommand(cmd,hash.hex).map { json =>
+    val flipped = BitcoinSUtil.flipEndianness(hash.hex)
+    sendCommand(cmd,flipped).map { json =>
       val result = json.fields("result")
       val walletTx = result.convertTo[WalletTransaction]
       walletTx

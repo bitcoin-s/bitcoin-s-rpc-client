@@ -1,6 +1,5 @@
 package org.bitcoins.rpc
 
-import akka.actor.ActorSystem
 import akka.http.javadsl.model.headers.HttpCredentials
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._

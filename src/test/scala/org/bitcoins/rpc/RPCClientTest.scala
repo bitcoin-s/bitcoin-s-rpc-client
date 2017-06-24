@@ -13,6 +13,8 @@ import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants
 import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest, WalletTransaction}
+import org.bitcoins.core.util.BitcoinSLogger
+import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -121,8 +123,8 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   }
 
   it must "be able to import a p2sh script successfully using importmulti" in {
-    val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
-    val pubKeys = privKeys.map(_.publicKey)
+    val (redeemScript,privKey) = ScriptGenerators.p2pkhScriptPubKey.sample.get
+    val pubKeys = Seq(privKey.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)
     val request = ImportMultiRequest(Left(scriptPubKey),Some(0L),Some(redeemScript),pubKeys,Nil,
       true,true,instance.network)
@@ -132,14 +134,13 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     }
   }
 
-
   it must "be able to import a p2sh address successfully using importmulti" in {
-    val (redeemScript,privKeys) = ScriptGenerators.smallMultiSigScriptPubKey.sample.get
-    val pubKeys = privKeys.map(_.publicKey)
+    val (redeemScript,privKey) = ScriptGenerators.p2pkhScriptPubKey.sample.get
+    val pubKeys = Seq(privKey.publicKey)
     val scriptPubKey = P2SHScriptPubKey(redeemScript)
     val addr = P2SHAddress(scriptPubKey,TestUtil.network)
     val request = ImportMultiRequest(Right(addr),None,Some(redeemScript),pubKeys,
-      privKeys,true,false, instance.network)
+      Seq(privKey),true,false, instance.network)
     val response = test.importMulti(request)
     whenReady(response, timeout(5.seconds), interval(500.millis)) { r =>
       r.success must be (true)
@@ -149,7 +150,9 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "send a raw transaction to the network" in {
     val signed = generatedTx
     val sent = signed.flatMap(s => test.sendRawTransaction(s))
-    val getrawtx = sent.flatMap(s => test.getRawTransaction(s))
+    val getrawtx = sent.flatMap { _ =>
+      signed.flatMap(s => test.getRawTransaction(s.txId))
+    }
     val allInfo: Future[(Transaction,Transaction)] = signed.flatMap { s =>
       getrawtx.map(tx => (s,tx))
     }
@@ -161,7 +164,9 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "get a transaction from the network" in {
     val signed = generatedTx
     val sent = signed.flatMap(tx => test.sendRawTransaction(tx))
-    val getTx = sent.flatMap(txId => test.getTransaction(txId))
+    val getTx = sent.flatMap { _ =>
+      signed.flatMap(s => test.getTransaction(s.txId))
+    }
     val allInfo: Future[(Transaction,WalletTransaction)] = getTx.flatMap { gTx =>
       signed.map(s => (s,gTx))
     }
@@ -173,10 +178,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
   it must "get the number of confirmations on a transaction" in {
     val signed = generatedTx
     val sent = signed.flatMap(s => test.sendRawTransaction(s))
-    val getConfsZero = sent.flatMap{ txid =>
-      val flippedEndianess = DoubleSha256Digest(BitcoinSUtil.flipEndianness(txid.hex))
-      test.getConfirmations(flippedEndianess)
-    }
+    val getConfsZero = sent.flatMap(test.getConfirmations(_))
     val generated = sent.flatMap(_ => test.generate(10))
     val getConfs10 = generated.flatMap { _ =>
       signed.flatMap { tx =>
@@ -237,7 +239,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     signed.map(_._1)
   }
   override def afterAll = {
-    Await.result(TestUtil.stopNodes(Seq(test,test1)), 5.seconds)
+    Await.result(TestUtil.stopNodes(Seq(test,test1)), 10.seconds)
     materializer.shutdown()
   }
 }
