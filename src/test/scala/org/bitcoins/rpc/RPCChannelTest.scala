@@ -59,7 +59,7 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
     val generateBlocksToConfirm = closed.flatMap { c => channelClient.flatMap(_.client.generate(10)) }
     val closedConfs = generateBlocksToConfirm.flatMap { _ =>
       closed.flatMap { tx =>
-        Thread.sleep(2500)
+        Thread.sleep(5000)
         channelServer.flatMap(_.client.getConfirmations(tx.txId))
       }
     }
