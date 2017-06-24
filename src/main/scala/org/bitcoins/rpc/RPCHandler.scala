@@ -1,6 +1,5 @@
 package org.bitcoins.rpc
 
-import akka.actor.ActorSystem
 import akka.http.javadsl.model.headers.HttpCredentials
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
@@ -14,8 +13,6 @@ import scala.concurrent.Future
   * Created by chris on 4/25/17.
   */
 sealed trait RPCHandler {
-
-  //implicit val materializer = ActorMaterializer()
 
   def sendRequest(instance: DaemonInstance, jsObject: JsObject)(implicit m: ActorMaterializer): Future[HttpResponse] = {
     val username = instance.authCredentials.username

@@ -1,16 +1,13 @@
 package org.bitcoins.rpc.channels
 
 import org.bitcoins.core.channels._
-import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey, ECPublicKey, TxSigComponent}
+import org.bitcoins.core.crypto.{ECPrivateKey, ECPublicKey}
 import org.bitcoins.core.currency.{CurrencyUnit, Satoshis}
-import org.bitcoins.core.number.{Int64, UInt32}
+import org.bitcoins.core.number.Int64
 import org.bitcoins.core.policy.Policy
-import org.bitcoins.core.protocol.{Address, BitcoinAddress, P2PKHAddress, P2SHAddress}
 import org.bitcoins.core.protocol.script._
 import org.bitcoins.core.protocol.transaction._
-import org.bitcoins.core.script.ScriptProgram
-import org.bitcoins.core.script.crypto.HashType
-import org.bitcoins.core.script.interpreter.ScriptInterpreter
+import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
 import org.bitcoins.rpc.bitcoincore.wallet.ImportMultiRequest
@@ -36,6 +33,8 @@ sealed trait ChannelClient extends BitcoinSLogger {
       val clientSigned = inProgress.clientSign(amount,clientKey)
       val newClient = clientSigned.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
       Future.fromTry(newClient)
+    case _: ChannelInProgressClientSigned =>
+      Future.failed(new IllegalArgumentException("Cannot update a payment channel while we are waiting for a server's signature"))
     case _: ChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot update a payment channel that is already closed"))
   }
@@ -56,8 +55,9 @@ sealed trait ChannelClient extends BitcoinSLogger {
   }
 
   def closeWithTimeout(implicit ec: ExecutionContext): Future[Transaction] = {
-    val nestedTimeoutSPK = channel.lock.timeout.nestedScriptPubKey.asInstanceOf[P2PKHScriptPubKey]
-    val timeoutKey = client.dumpPrivateKey(P2PKHAddress(nestedTimeoutSPK,client.instance.network))
+    val invariant = Future(require(channel.lock.timeout.nestedScriptPubKey.isInstanceOf[P2PKHScriptPubKey]))
+    val nestedTimeoutSPK = invariant.map(_ => channel.lock.timeout.nestedScriptPubKey.asInstanceOf[P2PKHScriptPubKey])
+    val timeoutKey = nestedTimeoutSPK.flatMap(spk => client.dumpPrivateKey(P2PKHAddress(spk,client.instance.network)))
     val closedWithTimeout = channel match {
       case awaiting: ChannelAwaitingAnchorTx =>
         val address = client.getNewAddress
@@ -71,6 +71,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
         val closed = timeoutKey.flatMap { key =>
           txSigComponentNoFee.flatMap { t =>
             address.flatMap { addr =>
+              //re-estimate the fee now that we have an idea what the size of the tx actually is
               val fee = estimateFeeForTx(t.finalTx.transaction)
               fee.flatMap{ f =>
                 Future.fromTry(awaiting.closeWithTimeout(addr.scriptPubKey, key,f)) }
@@ -93,7 +94,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
       case _: ChannelClosed =>
         Future.failed(new IllegalArgumentException("Cannot close a payment channel that has already been closed"))
     }
-    //TODO: Do we need to import the final tranasctions into the wallet somehow??
+
     val sendRawTx = closedWithTimeout.flatMap(c => client.sendRawTransaction(c.finalTx.transaction))
     sendRawTx.flatMap(_ => closedWithTimeout.map(_.finalTx.transaction))
   }
@@ -137,10 +138,10 @@ object ChannelClient extends BitcoinSLogger {
     val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => client.signRawTransaction(f._1))
     val sent = signed.flatMap(s => client.sendRawTransaction(s._1))
     val anchorTx = sent.flatMap { _ =>
-      val tx = signed.map(_._1)
-      tx.map { t =>
-        logger.info("Anchor txid: " + t.txId)
-        logger.info("Anchor transaction: " + t.hex)
+      val tx = signed.map { t =>
+        logger.info("Anchor txid: " + t._1.txId)
+        logger.info("Anchor transaction: " + t._1.hex)
+        t._1
       }
       tx
     }

@@ -69,6 +69,9 @@ sealed trait ChannelServer extends BitcoinSLogger {
         ChannelServer(client,serverKey,f,Some(clientSigned))
       }
       newServer
+    case _: ChannelInProgressClientSigned =>
+      Future.failed(new IllegalArgumentException("Cannot update a payment channel to client signed if the channel is " +
+        "already signed by the client awaiting a server's signature"))
     case _: ChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot update a payment channel when the payment channel is closed"))
   }
@@ -95,8 +98,12 @@ sealed trait ChannelServer extends BitcoinSLogger {
                     serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[Transaction] = {
     val feeEstimate = client.estimateFee(Policy.confirmations.toInt)
     val txSize = clientSigned.current.transaction.bytes.size
-    val fee: Future[CurrencyUnit] = feeEstimate.map(f => f * Satoshis(Int64(txSize)))
-    fee.map(f => logger.info("Fee for closing tx: " + f))
+    val fee: Future[CurrencyUnit] = feeEstimate.map { f =>
+      val fullFee = f * Satoshis(Int64(txSize))
+      logger.info("Fee for closing tx: " + fullFee)
+      fullFee
+    }
+
     val closed: Future[ChannelClosed] = fee.flatMap { f =>
       Future.fromTry(clientSigned.close(serverSPK, serverKey, f))
     }
