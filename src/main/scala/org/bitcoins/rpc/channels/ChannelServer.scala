@@ -39,17 +39,17 @@ sealed trait ChannelServer extends BitcoinSLogger {
   /** Updates our [[Channel]] with a new partially signed [[WitnessTransaction]] from the client,
     * This function signs the witness transaction with the servers private key and returns a new
     * [[ChannelServer]] instance with the new [[ChannelInProgress]]
+    *
     */
-  def update(partiallySignedTx: Transaction, clientSPK: ScriptPubKey,
-             privKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[ChannelServer] = channel match {
+  def update(partiallySignedTx: Transaction, changeClientSPK: ScriptPubKey)(implicit ec: ExecutionContext): Future[ChannelServer] = channel match {
     case awaiting: ChannelAwaitingAnchorTx =>
       val confs = client.getConfirmations(awaiting.anchorTx.txId)
       val newAwaiting = confs.flatMap { c =>
         Future.fromTry(ChannelAwaitingAnchorTx(awaiting.anchorTx, awaiting.lock, c.getOrElse(awaiting.confirmations)))
       }
-      val clientSigned = newAwaiting.map(a => a.createClientSigned(partiallySignedTx,clientSPK))
+      val clientSigned = newAwaiting.map(a => a.createClientSigned(partiallySignedTx,changeClientSPK))
       val fullySigned: Future[ChannelInProgress] = clientSigned.flatMap {
-        case Some(c) => Future.fromTry(c.serverSign(privKey))
+        case Some(c) => Future.fromTry(c.serverSign(serverKey))
         case None => Future.failed(new IllegalArgumentException("ClientSPK not founded on the partiallySignedTx"))
       }
       val newServer = fullySigned.flatMap { f =>
@@ -64,7 +64,7 @@ sealed trait ChannelServer extends BitcoinSLogger {
         current.flags)
       val clientSigned = ChannelInProgressClientSigned(inProgress.anchorTx,inProgress.lock,
         inProgress.clientSPK, updated, current +: inProgress.old)
-      val fullySigned = Future.fromTry(clientSigned.serverSign(privKey))
+      val fullySigned = Future.fromTry(clientSigned.serverSign(serverKey))
       val newServer = fullySigned.flatMap { f =>
         ChannelServer(client,serverKey,f,Some(clientSigned))
       }

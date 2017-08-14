@@ -25,32 +25,38 @@ sealed trait ChannelClient extends BitcoinSLogger {
 
   def clientKey: ECPrivateKey
 
-  def update(amount: CurrencyUnit, clientKey: ECPrivateKey): Future[(ChannelClient, Transaction)] = channel match {
+  def update(amount: CurrencyUnit): Future[(ChannelClient, Transaction)] = channel match {
     case _: ChannelAwaitingAnchorTx =>
       Future.failed(new IllegalArgumentException("Cannot sign a payment channel awaiting the anchor transaction, need to provide clientSPK and serverSPK"))
     case inProgress: ChannelInProgress =>
-      //update payment channel with confs on anchor tx
       val clientSigned = inProgress.clientSign(amount,clientKey)
-      val newClient = clientSigned.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
+      //TODO: This is hacky, but we want the current value to be of type ChannelInProgress, NOT ChannelInProgressClientSigned
+      val ip = clientSigned.map(c => ChannelInProgress(inProgress.anchorTx,inProgress.lock,inProgress.clientSPK,c.current,c.old))
+      val newClient = ip.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
       Future.fromTry(newClient)
     case _: ChannelInProgressClientSigned =>
-      Future.failed(new IllegalArgumentException("Cannot update a payment channel while we are waiting for a server's signature"))
+      //TODO: Look at this case, is this right?
+      Future.failed(new IllegalArgumentException("Channel was ChannelInProgressClientSigned"))
     case _: ChannelClosed =>
       Future.failed(new IllegalArgumentException("Cannot update a payment channel that is already closed"))
   }
 
   /** Creates the first spending transaction in the payment channel, then signs it with the client's key */
   def update(clientSPK: ScriptPubKey, amount: CurrencyUnit)(implicit ec: ExecutionContext): Future[(ChannelClient,Transaction)] = {
-    require(channel.isInstanceOf[ChannelAwaitingAnchorTx],
-      "Cannot create the first spending transaction for a payment channel if the type is NOT ChannelAwaitingAnchorTx")
-    val ch = channel.asInstanceOf[ChannelAwaitingAnchorTx]
+    val invariant = Future(require(channel.isInstanceOf[ChannelAwaitingAnchorTx],
+      "Cannot create the first spending transaction for a payment channel if the type is NOT ChannelAwaitingAnchorTx"))
+    val ch = invariant.map(_ => channel.asInstanceOf[ChannelAwaitingAnchorTx])
     //get the amount of confs on the anchor tx
-    val updatedConfs = client.getConfirmations(ch.anchorTx.txId)
-    val newAwaiting = updatedConfs.flatMap(confs =>
-      Future.fromTry(ChannelAwaitingAnchorTx(ch.anchorTx,ch.lock,confs.getOrElse(ch.confirmations))))
+    val updatedConfs = ch.flatMap(c => client.getConfirmations(c.anchorTx.txId))
+    val newAwaiting = ch.flatMap { c =>
+      updatedConfs.flatMap(confs =>
+        Future.fromTry(ChannelAwaitingAnchorTx(c.anchorTx, c.lock, confs.getOrElse(c.confirmations))))
+    }
     val clientSigned = newAwaiting.flatMap(ch =>
       Future.fromTry(ch.clientSign(clientSPK,amount,clientKey)))
-    val newClient = clientSigned.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
+    //TODO: This is hacky, but we want the current value to be of type ChannelInProgress, NOT ChannelInProgressClientSigned
+    val ip = clientSigned.map(c => ChannelInProgress(c.anchorTx,c.lock,c.clientSPK,c.current,c.old))
+    val newClient = ip.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
     newClient
   }
 
@@ -96,7 +102,10 @@ sealed trait ChannelClient extends BitcoinSLogger {
     }
 
     val sendRawTx = closedWithTimeout.flatMap(c => client.sendRawTransaction(c.finalTx.transaction))
-    sendRawTx.flatMap(_ => closedWithTimeout.map(_.finalTx.transaction))
+    sendRawTx.flatMap { txid =>
+      logger.info("Closed with timeout txid: " + txid)
+      closedWithTimeout.map(_.finalTx.transaction)
+    }
   }
 
 
@@ -123,11 +132,11 @@ object ChannelClient extends BitcoinSLogger {
     val lock = EscrowTimeoutScriptPubKey(escrow,timeout)
     val p2sh = P2SHScriptPubKey(lock)
     val addr = P2SHAddress(p2sh,client.instance.network)
-    val importRequest = importPrivKey.map { _ =>
-      ImportMultiRequest(Right(addr),None,Some(lock),Seq(serverPublicKey,clientPubKey), Nil,
+    val importMulti = importPrivKey.map { _ =>
+      val i = ImportMultiRequest(Right(addr),None,Some(lock),Seq(serverPublicKey,clientPubKey), Nil,
         false,true, client.instance.network)
+      client.importMulti(i)
     }
-    val importMulti = importRequest.flatMap(i => client.importMulti(i))
     val outputs = Seq(TransactionOutput(depositAmount,p2sh))
     val bTx = BaseTransaction(TransactionConstants.validLockVersion,Nil,outputs,
       TransactionConstants.lockTime)
@@ -135,8 +144,12 @@ object ChannelClient extends BitcoinSLogger {
     val funded: Future[(Transaction,CurrencyUnit,Int)] = importMulti.flatMap { i =>
       client.fundRawTransaction(bTx,None)
     }
-    val signed: Future[(Transaction,Boolean)] = funded.flatMap(f => client.signRawTransaction(f._1))
-    val sent = signed.flatMap(s => client.sendRawTransaction(s._1))
+    val signed: Future[(Transaction,Boolean)] = funded.flatMap { f =>
+      client.signRawTransaction(f._1)
+    }
+    val sent = signed.flatMap { s =>
+      client.sendRawTransaction(s._1)
+    }
     val anchorTx = sent.flatMap { _ =>
       val tx = signed.map { t =>
         logger.info("Anchor txid: " + t._1.txId)

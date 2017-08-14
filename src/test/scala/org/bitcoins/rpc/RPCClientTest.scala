@@ -3,18 +3,16 @@ package org.bitcoins.rpc
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
+import org.bitcoins.core.crypto.ECPrivateKey
 import org.bitcoins.core.currency.{Bitcoins, CurrencyUnit, CurrencyUnits, Satoshis}
 import org.bitcoins.core.gen.ScriptGenerators
 import org.bitcoins.core.number.Int64
-import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
 import org.bitcoins.core.protocol.script.{EmptyScriptPubKey, P2SHScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, TransactionConstants, TransactionOutput}
-import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
+import org.bitcoins.core.protocol.{P2PKHAddress, P2SHAddress}
+import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.bitcoincore.networking.{AddedNodeInfo, NodeAddress, OutboundConnection}
 import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest, WalletTransaction}
-import org.bitcoins.core.util.BitcoinSLogger
-import org.bitcoins.rpc.bitcoincore.wallet.WalletTransaction
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
