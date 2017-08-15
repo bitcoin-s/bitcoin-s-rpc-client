@@ -115,7 +115,7 @@ trait TestUtil extends BitcoinSLogger {
 
     val pcServer: Future[ChannelServer] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap { cli =>
-        Thread.sleep(5000)
+        Thread.sleep(7500)
         ChannelServer(client2, serverPrivKey, cli.channel.anchorTx.txId, cli.channel.lock)
       }
     }
