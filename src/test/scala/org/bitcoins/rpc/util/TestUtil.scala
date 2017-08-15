@@ -95,7 +95,10 @@ trait TestUtil extends BitcoinSLogger {
       client1.generate(300)
     }
 
-    val generateBlocksClient2: Future[Seq[DoubleSha256Digest]] = generateBlocks.flatMap(_ => client2.generate(175))
+    val generateBlocksClient2: Future[Seq[DoubleSha256Digest]] = generateBlocks.flatMap { _ =>
+      Thread.sleep(7500)
+      client2.generate(300)
+    }
 
     val serverPrivKey = ECPrivateKey()
     val serverPubKey = serverPrivKey.publicKey
@@ -106,6 +109,7 @@ trait TestUtil extends BitcoinSLogger {
 
     val pcClient: Future[ChannelClient] = lockTimeScriptPubKey.flatMap { lockTimeSPK =>
       generateBlocksClient2.flatMap { _ =>
+        Thread.sleep(5000)
         ChannelClient(client1, serverPubKey, lockTimeSPK, CurrencyUnits.oneBTC)
       }
     }

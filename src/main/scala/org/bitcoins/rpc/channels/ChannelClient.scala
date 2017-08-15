@@ -130,7 +130,8 @@ object ChannelClient extends BitcoinSLogger {
     val clientPubKey = clientPrivKey.publicKey
     val escrow = MultiSignatureScriptPubKey(2,Seq(clientPubKey, serverPublicKey))
     val lock = EscrowTimeoutScriptPubKey(escrow,timeout)
-    val p2sh = P2SHScriptPubKey(lock)
+    val witSPK = WitnessScriptPubKeyV0(lock)
+    val p2sh = P2SHScriptPubKey(witSPK)
     val addr = P2SHAddress(p2sh,client.instance.network)
     val importMulti = importPrivKey.map { _ =>
       val i = ImportMultiRequest(Right(addr),None,Some(lock),Seq(serverPublicKey,clientPubKey), Nil,

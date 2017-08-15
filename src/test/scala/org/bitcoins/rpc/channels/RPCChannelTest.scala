@@ -1,12 +1,11 @@
-package org.bitcoins.rpc
+package org.bitcoins.rpc.channels
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey}
+import org.bitcoins.core.crypto.DoubleSha256Digest
 import org.bitcoins.core.gen.ScriptGenerators
 import org.bitcoins.core.protocol.transaction.Transaction
 import org.bitcoins.core.util.BitcoinSLogger
-import org.bitcoins.rpc.channels.{ChannelClient, ChannelServer}
 import org.bitcoins.rpc.util.TestUtil
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, MustMatchers}
@@ -42,7 +41,7 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
       }
     }
     closedConfs.onComplete(_ => killClients(channelClient, channelServer))
-    whenReady(closedConfs, timeout(30.seconds), interval(500.millis)) { confs =>
+    whenReady(closedConfs, timeout(45.seconds), interval(500.millis)) { confs =>
       confs must be (Some(10))
     }
   }
@@ -64,7 +63,7 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
       }
     }
     closedConfs.onComplete(_ => killClients(channelClient,channelServer))
-    whenReady(closedConfs,timeout(30.seconds), interval(500.millis)) { confs =>
+    whenReady(closedConfs,timeout(45.seconds), interval(500.millis)) { confs =>
       confs must be (Some(10))
     }
   }
