@@ -31,7 +31,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
     case inProgress: ChannelInProgress =>
       val clientSigned = inProgress.clientSign(amount,clientKey)
       //TODO: This is hacky, but we want the current value to be of type ChannelInProgress, NOT ChannelInProgressClientSigned
-      val ip = clientSigned.map(c => ChannelInProgress(inProgress.anchorTx,inProgress.lock,inProgress.clientSPK,c.current,c.old))
+      val ip = clientSigned.map(c => ChannelInProgress(inProgress.anchorTx,inProgress.lock,inProgress.clientChangeSPK,c.current,c.old))
       val newClient = ip.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
       Future.fromTry(newClient)
     case _: ChannelInProgressClientSigned =>
@@ -42,7 +42,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
   }
 
   /** Creates the first spending transaction in the payment channel, then signs it with the client's key */
-  def update(clientSPK: ScriptPubKey, amount: CurrencyUnit)(implicit ec: ExecutionContext): Future[(ChannelClient,Transaction)] = {
+  def update(clientSPK: ScriptPubKey, amount: CurrencyUnit)(implicit ec: ExecutionContext): Future[(ChannelClient,WitnessTransaction)] = {
     val invariant = Future(require(channel.isInstanceOf[ChannelAwaitingAnchorTx],
       "Cannot create the first spending transaction for a payment channel if the type is NOT ChannelAwaitingAnchorTx"))
     val ch = invariant.map(_ => channel.asInstanceOf[ChannelAwaitingAnchorTx])
@@ -55,7 +55,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
     val clientSigned = newAwaiting.flatMap(ch =>
       Future.fromTry(ch.clientSign(clientSPK,amount,clientKey)))
     //TODO: This is hacky, but we want the current value to be of type ChannelInProgress, NOT ChannelInProgressClientSigned
-    val ip = clientSigned.map(c => ChannelInProgress(c.anchorTx,c.lock,c.clientSPK,c.current,c.old))
+    val ip = clientSigned.map(c => ChannelInProgress(c.anchorTx,c.lock,c.clientChangeSPK,c.current,c.old))
     val newClient = ip.map(c => (ChannelClient(client,c,clientKey),c.current.transaction))
     newClient
   }
@@ -78,7 +78,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
           txSigComponentNoFee.flatMap { t =>
             address.flatMap { addr =>
               //re-estimate the fee now that we have an idea what the size of the tx actually is
-              val fee = estimateFeeForTx(t.finalTx.transaction)
+              val fee = estimateFeeForTx(t.current.transaction)
               fee.flatMap{ f =>
                 Future.fromTry(awaiting.closeWithTimeout(addr.scriptPubKey, key,f)) }
             }
@@ -101,10 +101,10 @@ sealed trait ChannelClient extends BitcoinSLogger {
         Future.failed(new IllegalArgumentException("Cannot close a payment channel that has already been closed"))
     }
 
-    val sendRawTx = closedWithTimeout.flatMap(c => client.sendRawTransaction(c.finalTx.transaction))
+    val sendRawTx = closedWithTimeout.flatMap(c => client.sendRawTransaction(c.current.transaction))
     sendRawTx.flatMap { txid =>
       logger.info("Closed with timeout txid: " + txid)
-      closedWithTimeout.map(_.finalTx.transaction)
+      closedWithTimeout.map(_.current.transaction)
     }
   }
 

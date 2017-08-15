@@ -10,7 +10,7 @@ import org.bitcoins.core.currency.CurrencyUnits
 import org.bitcoins.core.gen.{ScriptGenerators, TransactionGenerators}
 import org.bitcoins.core.policy.Policy
 import org.bitcoins.core.protocol.script.{CSVScriptPubKey, LockTimeScriptPubKey}
-import org.bitcoins.core.protocol.transaction.Transaction
+import org.bitcoins.core.protocol.transaction.{Transaction, WitnessTransaction}
 import org.bitcoins.core.script.constant.ScriptNumber
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
@@ -120,7 +120,7 @@ trait TestUtil extends BitcoinSLogger {
       }
     }
     val amount = Policy.minChannelAmount
-    val clientSigned: Future[(ChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
+    val clientSigned: Future[(ChannelClient,WitnessTransaction)] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap(pc => pc.update(changeClientSPK, amount))
     }
 
