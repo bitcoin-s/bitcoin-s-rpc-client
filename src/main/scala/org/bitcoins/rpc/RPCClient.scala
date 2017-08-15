@@ -442,9 +442,10 @@ sealed trait RPCClient extends RPCMarshallerUtil
     * Imports the private key into bitcoin core's wallet
     * [[https://bitcoin.org/en/developer-reference#importprivkey]]
     */
-  def importPrivateKey(privKey: ECPrivateKey): Future[Boolean] = {
+  def importPrivateKey(privKey: ECPrivateKey,rescan:Boolean=false, account: String = ""): Future[Boolean] = {
     val key = privKey.toWIF(instance.network)
-    sendCommand("importprivkey",key).map(json => json.fields.keys.isEmpty)
+    val args = JsArray(JsString(key), JsString(account), JsBoolean(rescan))
+    sendCommand("importprivkey",args).map(json => json.fields.keys.isEmpty)
   }
 
   /**

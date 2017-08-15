@@ -17,7 +17,7 @@ object BitcoinSRPCClientBuild extends Build {
     "com.typesafe.akka" %% "akka-http-spray-json" % akkaV withSources() withJavadoc(),
 
     "org.slf4j" % "slf4j-api" % slf4jV % "provided",
-    "ch.qos.logback" % "logback-classic" % logbackV % "test"
+    "ch.qos.logback" % "logback-classic" % logbackV
   )
   
   val main = Project(appName, file(".")).enablePlugins().settings(

@@ -102,7 +102,7 @@ trait TestUtil extends BitcoinSLogger {
     val p2pkh = client1.getNewAddress
     val unspendable = ScriptNumber(100)
     val lockTimeScriptPubKey = p2pkh.map(p => CSVScriptPubKey(unspendable,p.scriptPubKey))
-    val clientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
+    val changeClientSPK = ScriptGenerators.p2pkhScriptPubKey.sample.get._1
 
     val pcClient: Future[ChannelClient] = lockTimeScriptPubKey.flatMap { lockTimeSPK =>
       generateBlocksClient2.flatMap { _ =>
@@ -121,12 +121,12 @@ trait TestUtil extends BitcoinSLogger {
     }
     val amount = Policy.minChannelAmount
     val clientSigned: Future[(ChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
-      pcClient.flatMap(pc => pc.update(clientSPK, amount))
+      pcClient.flatMap(pc => pc.update(changeClientSPK, amount))
     }
 
     val pcServerUpdated: Future[ChannelServer] = clientSigned.flatMap { cli =>
       pcServer.flatMap { server =>
-        server.update(cli._2,clientSPK,serverPrivKey)
+        server.update(cli._2,changeClientSPK)
       }
     }
     clientSigned.flatMap(pc => pcServerUpdated.map(ps => (pc._1,ps)))
