@@ -10,7 +10,7 @@ import org.bitcoins.core.currency.CurrencyUnits
 import org.bitcoins.core.gen.{ScriptGenerators, TransactionGenerators}
 import org.bitcoins.core.policy.Policy
 import org.bitcoins.core.protocol.script.{CSVScriptPubKey, LockTimeScriptPubKey}
-import org.bitcoins.core.protocol.transaction.Transaction
+import org.bitcoins.core.protocol.transaction.{Transaction, WitnessTransaction}
 import org.bitcoins.core.script.constant.ScriptNumber
 import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
@@ -95,7 +95,10 @@ trait TestUtil extends BitcoinSLogger {
       client1.generate(300)
     }
 
-    val generateBlocksClient2: Future[Seq[DoubleSha256Digest]] = generateBlocks.flatMap(_ => client2.generate(175))
+    val generateBlocksClient2: Future[Seq[DoubleSha256Digest]] = generateBlocks.flatMap { _ =>
+      Thread.sleep(7500)
+      client2.generate(300)
+    }
 
     val serverPrivKey = ECPrivateKey()
     val serverPubKey = serverPrivKey.publicKey
@@ -106,6 +109,7 @@ trait TestUtil extends BitcoinSLogger {
 
     val pcClient: Future[ChannelClient] = lockTimeScriptPubKey.flatMap { lockTimeSPK =>
       generateBlocksClient2.flatMap { _ =>
+        Thread.sleep(5000)
         ChannelClient(client1, serverPubKey, lockTimeSPK, CurrencyUnits.oneBTC)
       }
     }
@@ -120,7 +124,7 @@ trait TestUtil extends BitcoinSLogger {
       }
     }
     val amount = Policy.minChannelAmount
-    val clientSigned: Future[(ChannelClient,Transaction)] = generatedBlocks.flatMap { _ =>
+    val clientSigned: Future[(ChannelClient,WitnessTransaction)] = generatedBlocks.flatMap { _ =>
       pcClient.flatMap(pc => pc.update(changeClientSPK, amount))
     }
 

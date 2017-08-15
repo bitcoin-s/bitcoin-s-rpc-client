@@ -41,7 +41,7 @@ sealed trait ChannelServer extends BitcoinSLogger {
     * [[ChannelServer]] instance with the new [[ChannelInProgress]]
     *
     */
-  def update(partiallySignedTx: Transaction, changeClientSPK: ScriptPubKey)(implicit ec: ExecutionContext): Future[ChannelServer] = channel match {
+  def update(partiallySignedTx: WitnessTransaction, changeClientSPK: ScriptPubKey)(implicit ec: ExecutionContext): Future[ChannelServer] = channel match {
     case awaiting: ChannelAwaitingAnchorTx =>
       val confs = client.getConfirmations(awaiting.anchorTx.txId)
       val newAwaiting = confs.flatMap { c =>
@@ -60,10 +60,10 @@ sealed trait ChannelServer extends BitcoinSLogger {
       newServer
     case inProgress: ChannelInProgress =>
       val current = inProgress.current
-      val updated = TxSigComponent(partiallySignedTx,current.inputIndex,inProgress.scriptPubKey,
-        current.flags)
+      val updated = WitnessTxSigComponent(partiallySignedTx,current.inputIndex,inProgress.scriptPubKey,
+        current.flags,inProgress.lockedAmount)
       val clientSigned = ChannelInProgressClientSigned(inProgress.anchorTx,inProgress.lock,
-        inProgress.clientSPK, updated, current +: inProgress.old)
+        inProgress.clientChangeSPK, updated, current +: inProgress.old)
       val fullySigned = Future.fromTry(clientSigned.serverSign(serverKey))
       val newServer = fullySigned.flatMap { f =>
         ChannelServer(client,serverKey,f,Some(clientSigned))
@@ -109,13 +109,13 @@ sealed trait ChannelServer extends BitcoinSLogger {
     }
 
     val broadcast = closed.flatMap { c =>
-      logger.info("Broadcasting tx for closed payment channel: " + c.finalTx.transaction.hex)
-      val txid = client.sendRawTransaction(c.finalTx.transaction)
+      logger.info("Broadcasting tx for closed payment channel: " + c.current.transaction.hex)
+      val txid = client.sendRawTransaction(c.current.transaction)
       txid.map(t => logger.info("Broadcast txid: " + t))
       txid
     }
     broadcast.flatMap { _ =>
-      closed.map(_.finalTx.transaction)
+      closed.map(_.current.transaction)
     }
   }
 }

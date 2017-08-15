@@ -187,8 +187,12 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     //test what happens when a tx is not broadcast at all
     val notBroadcast = generatedTx
     val notBroadcastConfs = notBroadcast.flatMap(tx => test.getConfirmations(tx.txId))
-    val successful = getConfsZero.flatMap(z => getConfs10.map(t => (z,t)))
-    val confs = successful.flatMap(s => notBroadcastConfs.failed.map(t => (Seq(s._1,s._2),t)))
+    val successful: Future[(Option[Long],Option[Long])] = getConfsZero.flatMap(z => getConfs10.map(t => (z,t)))
+    val confs: Future[(Seq[Option[Long]],Throwable)] = successful.flatMap { s =>
+      notBroadcastConfs.failed.map { t =>
+        (Seq(s._1,s._2),t)
+      }
+    }
     whenReady(confs, timeout(5.seconds), interval(500.millis)) { c =>
       c._1(0) must be (Some(0))
       c._1(1) must be (Some(10))
