@@ -177,7 +177,7 @@ class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
     val signed = generatedTx
     val sent = signed.flatMap(s => test.sendRawTransaction(s))
     val getConfsZero = sent.flatMap(test.getConfirmations(_))
-    val generated = sent.flatMap(_ => test.generate(10))
+    val generated = getConfsZero.flatMap(_ => test.generate(10))
     val getConfs10 = generated.flatMap { _ =>
       signed.flatMap { tx =>
         test.getConfirmations(tx.txId)
