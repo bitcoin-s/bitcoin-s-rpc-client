@@ -36,7 +36,7 @@ class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
       val genBlocks2 = channelClient.map(_.client.generate(10))
       genBlocks2.flatMap { _ =>
         //time for blocks to propogate
-        Thread.sleep(10000)
+        Thread.sleep(12500)
         channelClient.flatMap(_.client.getConfirmations(tx.txId))
       }
     }

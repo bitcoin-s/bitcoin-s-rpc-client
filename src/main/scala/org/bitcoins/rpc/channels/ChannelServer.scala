@@ -1,19 +1,16 @@
 package org.bitcoins.rpc.channels
 
 import org.bitcoins.core.channels._
-import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey, TxSigComponent, WitnessTxSigComponent}
+import org.bitcoins.core.crypto.{DoubleSha256Digest, ECPrivateKey, WitnessTxSigComponent}
 import org.bitcoins.core.currency.{CurrencyUnit, Satoshis}
-import org.bitcoins.core.number.{Int64, UInt32}
+import org.bitcoins.core.number.Int64
 import org.bitcoins.core.policy.Policy
 import org.bitcoins.core.protocol.P2SHAddress
 import org.bitcoins.core.protocol.script.{EscrowTimeoutScriptPubKey, ScriptPubKey}
 import org.bitcoins.core.protocol.transaction.{Transaction, WitnessTransaction}
-import org.bitcoins.core.script.ScriptProgram
-import org.bitcoins.core.script.crypto.HashType
-import org.bitcoins.core.script.interpreter.ScriptInterpreter
-import org.bitcoins.core.util.{BitcoinSLogger, BitcoinSUtil}
+import org.bitcoins.core.util.BitcoinSLogger
 import org.bitcoins.rpc.RPCClient
-import org.bitcoins.rpc.bitcoincore.wallet.{FundRawTransactionOptions, ImportMultiRequest}
+import org.bitcoins.rpc.bitcoincore.wallet.ImportMultiRequest
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -77,7 +74,7 @@ sealed trait ChannelServer extends BitcoinSLogger {
   }
 
   /** Closes the payment channel, returns the final transaction */
-  def close(serverSPK: ScriptPubKey)(implicit ex: ExecutionContext): Future[Transaction] = channel match {
+  def close(serverSPK: ScriptPubKey)(implicit ex: ExecutionContext): Future[WitnessTransaction] = channel match {
     case _: ChannelAwaitingAnchorTx =>
       Future.failed(new IllegalArgumentException("Cannot close a payment channel that is awaiting anchor tx"))
     case clientSigned: ChannelInProgressClientSigned =>
@@ -95,7 +92,7 @@ sealed trait ChannelServer extends BitcoinSLogger {
 
   /** Helper function to close a payment channel */
   private def close(clientSigned: ChannelInProgressClientSigned, serverSPK: ScriptPubKey,
-                    serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[Transaction] = {
+                    serverKey: ECPrivateKey)(implicit ec: ExecutionContext): Future[WitnessTransaction] = {
     val feeEstimate = client.estimateFee(Policy.confirmations.toInt)
     val txSize = clientSigned.current.transaction.bytes.size
     val fee: Future[CurrencyUnit] = feeEstimate.map { f =>
