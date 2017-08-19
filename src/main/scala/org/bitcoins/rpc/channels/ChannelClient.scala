@@ -25,7 +25,7 @@ sealed trait ChannelClient extends BitcoinSLogger {
 
   def clientKey: ECPrivateKey
 
-  def update(amount: CurrencyUnit): Future[(ChannelClient, Transaction)] = channel match {
+  def update(amount: CurrencyUnit): Future[(ChannelClient, WitnessTransaction)] = channel match {
     case _: ChannelAwaitingAnchorTx =>
       Future.failed(new IllegalArgumentException("Cannot sign a payment channel awaiting the anchor transaction, need to provide clientSPK and serverSPK"))
     case inProgress: ChannelInProgress =>
