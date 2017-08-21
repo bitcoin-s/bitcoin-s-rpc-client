@@ -1,7 +1,3 @@
-import AssemblyKeys._
-
-//test in assembly := {}
-
 testOptions in Test += Tests.Argument(TestFrameworks.ScalaCheck, "-verbosity", "3")
 
 coverageExcludedPackages := ".*gen"
@@ -15,6 +11,8 @@ mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) => {
     case x => old(x)
   }
 }
+
+//test in assembly := {}
 
 assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
 
