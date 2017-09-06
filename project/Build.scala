@@ -1,5 +1,6 @@
 import sbt._
 import Keys._ 
+import sbtassembly.AssemblyPlugin.autoImport._
 object BitcoinSRPCClientBuild extends Build {
 
   val appName = "bitcoin-s-rpc-client"
