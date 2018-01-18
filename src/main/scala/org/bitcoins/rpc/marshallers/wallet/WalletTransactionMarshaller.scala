@@ -12,7 +12,7 @@ import scala.util.Try
 /**
   * Created by chris on 5/4/17.
   */
-object WalletTransactionMarshaller extends DefaultJsonProtocol with BitcoinSLogger {
+object WalletTransactionMarshaller extends DefaultJsonProtocol {
 
 
 
@@ -61,8 +61,8 @@ object WalletTransactionMarshaller extends DefaultJsonProtocol with BitcoinSLogg
 
     override def write(walletTx: WalletTransaction): JsValue = {
       val m : Map[String,JsValue] = Map(
-        amountKey -> JsNumber(Bitcoins(walletTx.amount.satoshis).underlying),
-        feeKey -> JsNumber(Bitcoins(walletTx.amount.satoshis).underlying),
+        amountKey -> JsNumber(Bitcoins(walletTx.amount.satoshis).toBigDecimal),
+        feeKey -> JsNumber(Bitcoins(walletTx.amount.satoshis).toBigDecimal),
         confirmationsKey -> JsNumber(walletTx.confirmations),
         generatedKey -> (if (walletTx.generated.isDefined) JsBoolean(walletTx.generated.get) else JsNull),
         blockHashKey -> (if (walletTx.blockHash.isDefined) JsString(walletTx.blockHash.get.hex) else JsNull),

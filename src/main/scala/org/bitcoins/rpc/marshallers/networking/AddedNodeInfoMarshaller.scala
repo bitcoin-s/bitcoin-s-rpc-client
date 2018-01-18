@@ -8,7 +8,7 @@ import org.bitcoins.core.util.BitcoinSLogger
 /**
   * Created by chris on 5/7/17.
   */
-object AddedNodeInfoMarshaller extends DefaultJsonProtocol with BitcoinSLogger {
+object AddedNodeInfoMarshaller extends DefaultJsonProtocol {
 
   val addedNodeKey = "addednode"
   val connectedKey = "connected"
