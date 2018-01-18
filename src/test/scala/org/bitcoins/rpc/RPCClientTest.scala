@@ -24,7 +24,8 @@ import scala.concurrent.{Await, Future}
   * Created by tom on 4/26/16.
   */
 class RPCClientTest extends FlatSpec with MustMatchers with ScalaFutures with
-  BeforeAndAfterAll with BitcoinSLogger {
+  BeforeAndAfterAll {
+  private val logger = BitcoinSLogger.logger
   implicit val actorSystem = ActorSystem("RPCClientTest")
   val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher

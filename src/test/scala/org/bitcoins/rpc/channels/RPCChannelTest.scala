@@ -17,8 +17,8 @@ import scala.util.{Failure, Success}
   * Created by chris on 5/3/17.
   */
 class RPCChannelTest extends FlatSpec with MustMatchers with ScalaFutures
-  with BeforeAndAfterAll with BitcoinSLogger {
-
+  with BeforeAndAfterAll {
+  private val logger = BitcoinSLogger.logger
   implicit val actorSystem = ActorSystem("RPCClientTest")
   implicit val materializer = ActorMaterializer()
   implicit val dispatcher = materializer.system.dispatcher

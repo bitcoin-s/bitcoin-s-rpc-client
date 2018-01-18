@@ -33,8 +33,8 @@ import scala.util.Try
 /**
   * Created by Tom on 1/14/2016.
   */
-sealed trait RPCClient extends RPCMarshallerUtil
-  with BitcoinSLogger with DefaultJsonProtocol {
+sealed trait RPCClient extends RPCMarshallerUtil with DefaultJsonProtocol {
+  private def logger = BitcoinSLogger.logger
   def instance: DaemonInstance
   implicit val materializer: ActorMaterializer
   implicit val dispatcher = materializer.system.dispatcher
@@ -290,7 +290,7 @@ sealed trait RPCClient extends RPCMarshallerUtil
   private def convertToSatoshisPerByte(btc: Bitcoins): Try[CurrencyUnit] = Try {
     val satPerKB = btc.satoshis
     //convert kb -> byte
-    val perByte = satPerKB.underlying.underlying * 0.001
+    val perByte = satPerKB.toLong * 0.001
     val satoshisPerByte = Satoshis(Int64(perByte.toInt))
     require(satoshisPerByte > Satoshis.zero)
     satoshisPerByte

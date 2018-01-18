@@ -43,7 +43,7 @@ object FundRawTransactionOptionsMarshaller extends DefaultJsonProtocol {
       } else withLockUnspent
 
       val withFeeRate = if (options.feeRate.isDefined) {
-        withReserveChangeKey.updated(feeRateKey, JsNumber(options.feeRate.get.underlying))
+        withReserveChangeKey.updated(feeRateKey, JsNumber(options.feeRate.get.toBigDecimal))
       } else withReserveChangeKey
 
       val withSubtractFeeFromOutputs = {
